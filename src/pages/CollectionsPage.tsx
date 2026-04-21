@@ -1,23 +1,15 @@
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Search, SlidersHorizontal, X, ChevronDown, Check } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import ProductCard from '../components/ProductCard';
 import FilterPanel from '../components/FilterPanel';
-import { categories, products } from '../data/mockData';
-
-type Filters = {
-  categories: string[];
-  priceRange: [number, number] | null;
-  inStock: boolean | null;
-};
-
-type SortOption = 'price-asc' | 'price-desc' | 'newest' | '';
-
-const ALL_CATEGORIES = categories.map((category) => category.name);
+import { getFilteredProducts } from '../services/productService';
+import { getCategories } from '../services/categoryService';
+import { Product, Category, ProductFilters, SortOption } from '../types/product';
 
 const PRICE_RANGES: { label: string; range: [number, number] }[] = [
   { label: 'Under $50', range: [0, 50] },
-  { label: '$50 – $150', range: [50, 150] },
+  { label: '$50 - $150', range: [50, 150] },
   { label: '$150+', range: [150, 999999] },
 ];
 
@@ -28,20 +20,45 @@ const SORT_OPTIONS: { value: SortOption; label: string }[] = [
   { value: 'price-desc', label: 'Price: High to Low' },
 ];
 
+function ProductGridSkeleton({ count = 8 }: { count?: number }) {
+  return (
+    <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-x-4 gap-y-8 sm:gap-x-6 sm:gap-y-10">
+      {Array.from({ length: count }).map((_, idx) => (
+        <div key={idx} className="animate-pulse">
+          <div className="bg-black/[0.04] rounded-2xl aspect-[3/4] mb-4" />
+          <div className="flex justify-between items-baseline px-1 gap-2">
+            <div className="h-4 bg-black/[0.04] rounded-full w-2/3" />
+            <div className="h-4 bg-black/[0.04] rounded-full w-16" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function CollectionsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const categorySlug = searchParams.get('category');
-  const selectedCategory = useMemo(
-    () => categories.find((category) => category.slug === categorySlug && category.isActive),
-    [categorySlug],
-  );
+  const navigate = useNavigate();
 
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [sortOption, setSortOption] = useState<SortOption>('');
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState<boolean>(false);
   const [sortDropdownOpen, setSortDropdownOpen] = useState<boolean>(false);
   const sortRef = useRef<HTMLDivElement>(null);
-  const navigate = useNavigate();
+
+  const [filters, setFilters] = useState<ProductFilters>({
+    categories: [],
+    priceRange: null,
+    inStock: null,
+    search: '',
+  });
+
+  const selectedCategory = categories.find((c) => c.slug === categorySlug && c.isActive);
+  const allCategoryNames = categories.filter((c) => c.isActive).map((c) => c.name);
 
   // Close sort dropdown on outside click
   useEffect(() => {
@@ -66,12 +83,16 @@ export default function CollectionsPage() {
     };
   }, [mobileFiltersOpen]);
 
-  const [filters, setFilters] = useState<Filters>({
-    categories: [],
-    priceRange: null,
-    inStock: null,
-  });
+  // Load categories on mount
+  useEffect(() => {
+    const loadCategories = async () => {
+      const cats = await getCategories();
+      setCategories(cats);
+    };
+    loadCategories();
+  }, []);
 
+  // Sync selected category from URL
   useEffect(() => {
     if (!selectedCategory) return;
 
@@ -84,31 +105,46 @@ export default function CollectionsPage() {
     });
   }, [selectedCategory]);
 
+  // Fetch products when filters or sort change
+  const fetchProducts = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const result = await getFilteredProducts(filters, sortOption);
+      setProducts(result);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [filters, sortOption]);
+
+  useEffect(() => {
+    fetchProducts();
+  }, [fetchProducts]);
+
   const handleCategoryToggle = (category: string) => {
-    setFilters(prev => {
+    setFilters((prev) => {
       if (prev.categories.includes(category)) {
-        return { ...prev, categories: prev.categories.filter(c => c !== category) };
+        return { ...prev, categories: prev.categories.filter((c) => c !== category) };
       }
       return { ...prev, categories: [...prev.categories, category] };
     });
   };
 
   const handlePriceToggle = (range: [number, number]) => {
-    setFilters(prev => ({
+    setFilters((prev) => ({
       ...prev,
       priceRange: prev.priceRange?.[0] === range[0] && prev.priceRange?.[1] === range[1] ? null : range,
     }));
   };
 
   const handleInStockToggle = () => {
-    setFilters(prev => ({
+    setFilters((prev) => ({
       ...prev,
       inStock: prev.inStock ? null : true,
     }));
   };
 
   const clearAllFilters = () => {
-    setFilters({ categories: [], priceRange: null, inStock: null });
+    setFilters({ categories: [], priceRange: null, inStock: null, search: '' });
     setSearchQuery('');
 
     if (searchParams.has('category')) {
@@ -128,46 +164,11 @@ export default function CollectionsPage() {
     }));
   };
 
-  const hasActiveFilters = filters.categories.length > 0 || filters.priceRange !== null || filters.inStock !== null || searchQuery.trim() !== '';
-
-  const filteredAndSortedProducts = useMemo(() => {
-    let result = selectedCategory
-      ? products.filter((product) => product.categoryId === selectedCategory.id && product.isActive)
-      : products.filter((product) => product.isActive);
-
-    if (searchQuery.trim()) {
-      const lowerQuery = searchQuery.toLowerCase();
-      result = result.filter(p => p.name.toLowerCase().includes(lowerQuery));
-    }
-
-    if (filters.categories.length > 0) {
-      const selectedCategoryIds = categories
-        .filter((category) => filters.categories.includes(category.name))
-        .map((category) => category.id);
-      result = result.filter((product) => selectedCategoryIds.includes(product.categoryId));
-    }
-
-    if (filters.priceRange) {
-      const [min, max] = filters.priceRange;
-      result = result.filter(p => p.price >= min && p.price <= max);
-    }
-
-    if (filters.inStock !== null) {
-      result = result.filter(p => p.stock > 0);
-    }
-
-    if (sortOption === 'price-asc') {
-      result.sort((a, b) => a.price - b.price);
-    } else if (sortOption === 'price-desc') {
-      result.sort((a, b) => b.price - a.price);
-    } else if (sortOption === 'newest') {
-      result.sort((a, b) => {
-        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-      });
-    }
-
-    return result;
-  }, [searchQuery, filters, sortOption, selectedCategory]);
+  const hasActiveFilters =
+    filters.categories.length > 0 ||
+    filters.priceRange !== null ||
+    filters.inStock !== null ||
+    searchQuery.trim() !== '';
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -202,9 +203,7 @@ export default function CollectionsPage() {
             aria-label="Open filters"
           >
             <SlidersHorizontal size={16} /> Filters
-            {hasActiveFilters && (
-              <span className="w-1.5 h-1.5 bg-brand rounded-full" />
-            )}
+            {hasActiveFilters && <span className="w-1.5 h-1.5 bg-brand rounded-full" />}
           </button>
 
           <div className="w-full sm:w-auto flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4 sm:ml-auto">
@@ -241,7 +240,7 @@ export default function CollectionsPage() {
                 aria-haspopup="listbox"
               >
                 <span className="truncate mr-2">
-                  Sort: {sortOption === '' ? 'Recommended' : SORT_OPTIONS.find(opt => opt.value === sortOption)?.label.replace('Price: ', '')}
+                  Sort: {sortOption === '' ? 'Recommended' : SORT_OPTIONS.find((opt) => opt.value === sortOption)?.label.replace('Price: ', '')}
                 </span>
                 <ChevronDown
                   className={`text-textLight shrink-0 transition-transform duration-200 ${sortDropdownOpen ? 'rotate-180' : ''}`}
@@ -282,7 +281,7 @@ export default function CollectionsPage() {
         {/* Active Filter Pills */}
         {hasActiveFilters && (
           <div className="flex flex-wrap items-center gap-2 mb-6">
-            {filters.categories.map(cat => (
+            {filters.categories.map((cat) => (
               <button
                 key={cat}
                 onClick={() => handleCategoryToggle(cat)}
@@ -301,7 +300,7 @@ export default function CollectionsPage() {
                 onClick={() => handlePriceToggle(filters.priceRange!)}
                 className="flex items-center gap-1.5 text-xs font-medium bg-brand/10 text-brand px-3 py-1.5 rounded-full hover:bg-brand/20 transition-colors"
               >
-                {PRICE_RANGES.find(r => r.range[0] === filters.priceRange![0])?.label}
+                {PRICE_RANGES.find((r) => r.range[0] === filters.priceRange![0])?.label}
                 <X size={12} />
               </button>
             )}
@@ -329,7 +328,7 @@ export default function CollectionsPage() {
           <aside className="hidden md:block w-56 lg:w-64 shrink-0 top-32 sticky h-fit max-h-[80vh] overflow-y-auto pb-8 hide-scrollbar">
             <h2 className="text-lg font-serif text-textMain mb-6">Refine</h2>
             <FilterPanel
-              categories={ALL_CATEGORIES}
+              categories={allCategoryNames}
               selectedCategories={filters.categories}
               onCategoryToggle={handleCategoryToggle}
               priceRanges={PRICE_RANGES}
@@ -342,12 +341,19 @@ export default function CollectionsPage() {
 
           {/* Product Grid Area */}
           <div className="flex-1 w-full min-w-0">
-            {/* Results count */}
             <p className="text-xs text-textLight mb-6 uppercase tracking-wider">
-              {filteredAndSortedProducts.length} {filteredAndSortedProducts.length === 1 ? 'piece' : 'pieces'}
+              {isLoading ? (
+                <span className="animate-pulse">Loading...</span>
+              ) : (
+                <>
+                  {products.length} {products.length === 1 ? 'piece' : 'pieces'}
+                </>
+              )}
             </p>
 
-            {filteredAndSortedProducts.length === 0 ? (
+            {isLoading ? (
+              <ProductGridSkeleton />
+            ) : products.length === 0 ? (
               <div className="text-center py-24 sm:py-32 bg-white/50 rounded-3xl border border-black/5">
                 <div className="w-16 h-16 rounded-full bg-black/[0.03] flex items-center justify-center mx-auto mb-6">
                   <Search size={24} strokeWidth={1.5} className="text-textLight" />
@@ -363,7 +369,7 @@ export default function CollectionsPage() {
               </div>
             ) : (
               <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-x-4 gap-y-8 sm:gap-x-6 sm:gap-y-10">
-                {filteredAndSortedProducts.map(product => (
+                {products.map((product) => (
                   <ProductCard key={product.id} product={product} />
                 ))}
               </div>
@@ -400,7 +406,7 @@ export default function CollectionsPage() {
           </div>
           <div className="p-6 overflow-y-auto flex-grow hide-scrollbar">
             <FilterPanel
-              categories={ALL_CATEGORIES}
+              categories={allCategoryNames}
               selectedCategories={filters.categories}
               onCategoryToggle={handleCategoryToggle}
               priceRanges={PRICE_RANGES}
@@ -415,7 +421,7 @@ export default function CollectionsPage() {
               onClick={() => setMobileFiltersOpen(false)}
               className="w-full bg-brand text-white py-3.5 rounded-full text-sm font-semibold uppercase tracking-widest hover:bg-brand/90 transition-colors active:scale-[0.98]"
             >
-              View {filteredAndSortedProducts.length} {filteredAndSortedProducts.length === 1 ? 'Result' : 'Results'}
+              View {products.length} {products.length === 1 ? 'Result' : 'Results'}
             </button>
           </div>
         </div>

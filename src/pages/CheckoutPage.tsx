@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { ChevronLeft, ShoppingBag } from 'lucide-react';
+import { ChevronLeft, ShoppingBag, AlertCircle, Check } from 'lucide-react';
 import { useCart } from '../context/CartContext';
+import { createOrder, formatEstimatedDelivery } from '../services/orderService';
+import { Order, ShippingAddress, OrderItem } from '../types/product';
 import Button from '../components/Button';
 
 interface CheckoutFormState {
@@ -17,10 +19,20 @@ interface CheckoutFormState {
   cvv: string;
 }
 
-interface CheckoutSuccessState {
+interface FormErrors {
+  fullName?: string;
   email?: string;
-  total?: number;
-  itemCount?: number;
+  phone?: string;
+  address?: string;
+  city?: string;
+  country?: string;
+  cardNumber?: string;
+  expiry?: string;
+  cvv?: string;
+}
+
+interface CheckoutSuccessState {
+  order?: Order;
 }
 
 const formatCardNumber = (value: string): string => {
@@ -48,6 +60,53 @@ const isValidExpiry = (expiry: string): boolean => {
 
   return year > currentYear || (year === currentYear && month >= currentMonth);
 };
+
+const validateEmail = (email: string): boolean => /^\S+@\S+\.\S+$/.test(email);
+
+function InputField({
+  id,
+  label,
+  type = 'text',
+  value,
+  onChange,
+  placeholder,
+  error,
+  ...props
+}: {
+  id: string;
+  label: string;
+  type?: string;
+  value: string;
+  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  placeholder: string;
+  error?: string;
+} & React.InputHTMLAttributes<HTMLInputElement>) {
+  return (
+    <div>
+      <label htmlFor={id} className="block text-xs font-semibold uppercase tracking-widest text-textMain mb-2">
+        {label}
+      </label>
+      <input
+        type={type}
+        id={id}
+        name={id}
+        value={value}
+        onChange={onChange}
+        className={`w-full px-4 py-3 bg-white border rounded-xl text-textMain focus:outline-none focus:ring-2 focus:border-transparent transition-all ${
+          error ? 'border-red-300 focus:ring-red-200' : 'border-black/10 focus:ring-brand/40'
+        }`}
+        placeholder={placeholder}
+        {...props}
+      />
+      {error && (
+        <p className="mt-1.5 text-xs text-red-500 flex items-center gap-1">
+          <AlertCircle size={12} />
+          {error}
+        </p>
+      )}
+    </div>
+  );
+}
 
 export default function CheckoutPage() {
   const {
@@ -77,6 +136,8 @@ export default function CheckoutPage() {
     cvv: '',
   });
 
+  const [errors, setErrors] = useState<FormErrors>({});
+  const [touched, setTouched] = useState<Set<string>>(new Set());
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [couponInput, setCouponInput] = useState<string>(appliedCouponCode);
   const [couponFeedback, setCouponFeedback] = useState<string>('');
@@ -104,6 +165,36 @@ export default function CheckoutPage() {
     return () => window.clearTimeout(timer);
   }, [cartTotals.total]);
 
+  const validateForm = (): FormErrors => {
+    const newErrors: FormErrors = {};
+
+    if (!form.fullName.trim()) newErrors.fullName = 'Name is required';
+    if (!form.email.trim()) newErrors.email = 'Email is required';
+    else if (!validateEmail(form.email)) newErrors.email = 'Enter a valid email';
+    if (!form.phone.trim()) newErrors.phone = 'Phone is required';
+    if (!form.address.trim()) newErrors.address = 'Address is required';
+    if (!form.city.trim()) newErrors.city = 'City is required';
+    if (!form.country) newErrors.country = 'Country is required';
+
+    if (form.paymentMethod === 'credit_card') {
+      if (form.cardNumber.replace(/\s/g, '').length !== 16) {
+        newErrors.cardNumber = 'Enter a valid 16-digit card number';
+      }
+      if (!isValidExpiry(form.expiry)) {
+        newErrors.expiry = 'Enter a valid expiry date';
+      }
+      if (form.cvv.length < 3) {
+        newErrors.cvv = 'Enter a valid CVV';
+      }
+    }
+
+    return newErrors;
+  };
+
+  const isFormValid = useMemo(() => {
+    return Object.keys(validateForm()).length === 0;
+  }, [form]);
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
 
@@ -125,43 +216,56 @@ export default function CheckoutPage() {
     setForm((prev) => ({ ...prev, [name]: value }));
   };
 
-  const isFormValid = useMemo(() => {
-    const { fullName, email, phone, address, city, country, paymentMethod, cardNumber, expiry, cvv } = form;
+  const handleBlur = (field: string) => {
+    setTouched((prev) => new Set(prev).add(field));
+    const newErrors = validateForm();
+    setErrors(newErrors);
+  };
 
-    // Basic required fields
-    if (!fullName || !email || !phone || !address || !city || !country) return false;
+  const handlePlaceOrder = async () => {
+    const formErrors = validateForm();
+    setErrors(formErrors);
+    setTouched(new Set(Object.keys(form)));
 
-    // Basic email validation
-    if (!/^\S+@\S+\.\S+$/.test(email)) return false;
-
-    if (paymentMethod === 'credit_card') {
-      if (cardNumber.replace(/\s/g, '').length !== 16) return false;
-      if (!isValidExpiry(expiry)) return false;
-      if (cvv.length < 3) return false;
-    }
-
-    return true;
-  }, [form]);
-
-  const handlePlaceOrder = () => {
-    if (!isFormValid || items.length === 0) return;
+    if (Object.keys(formErrors).length > 0 || items.length === 0) return;
 
     setIsSubmitting(true);
 
-    window.setTimeout(() => {
-      const orderSnapshot: CheckoutSuccessState = {
+    try {
+      const shippingAddress: ShippingAddress = {
+        fullName: form.fullName,
         email: form.email,
-        total: finalTotal,
-        itemCount: items.reduce((acc, item) => acc + item.quantity, 0),
+        phone: form.phone,
+        address: form.address,
+        city: form.city,
+        country: form.country,
       };
 
-      setIsSubmitting(false);
+      const orderItems: OrderItem[] = items.map((item) => ({
+        productId: item.productId,
+        name: item.name,
+        price: item.price,
+        image: item.image,
+        size: item.size,
+        color: item.color,
+        quantity: item.quantity,
+      }));
+
+      const order = await createOrder({
+        items: orderItems,
+        shippingAddress,
+        paymentMethod: form.paymentMethod,
+        totals: cartTotals,
+      });
+
       clearCart();
       navigate('/checkout/success', {
         replace: true,
-        state: orderSnapshot,
+        state: { order } as CheckoutSuccessState,
       });
-    }, 1500);
+    } catch {
+      setIsSubmitting(false);
+    }
   };
 
   const handleApplyCoupon = () => {
@@ -178,22 +282,43 @@ export default function CheckoutPage() {
   };
 
   if (isConfirmationRoute) {
+    const order = successState?.order;
     return (
       <div className="min-h-screen bg-background pt-32 pb-24 px-6 flex flex-col items-center justify-center animate-fade-in-up">
         <div className="w-20 h-20 rounded-full bg-brand/10 text-brand flex items-center justify-center mb-8">
-          <svg className="w-10 h-10" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-          </svg>
+          <Check size={40} strokeWidth={2} />
         </div>
-        <h1 className="text-3xl font-serif text-textMain mb-4">Order Confirmed</h1>
+        <h1 className="text-3xl md:text-4xl font-serif text-textMain mb-4 text-center">Order Confirmed</h1>
         <p className="text-textLight mb-3 text-center max-w-md">
           Thank you for your order. Your pieces are now being prepared with care.
         </p>
-        <p className="text-xs uppercase tracking-wider text-textLight mb-8 text-center">
-          {successState?.itemCount || 0} {successState?.itemCount === 1 ? 'item' : 'items'}
-          {typeof successState?.total === 'number' ? ` · $${successState.total.toFixed(2)}` : ''}
-          {successState?.email ? ` · ${successState.email}` : ''}
-        </p>
+        {order && (
+          <div className="bg-white rounded-2xl p-6 mb-8 max-w-sm w-full border border-black/5 shadow-sm">
+            <div className="flex justify-between items-center mb-4 pb-4 border-b border-black/5">
+              <span className="text-xs uppercase tracking-widest text-textLight">Order ID</span>
+              <span className="text-sm font-medium text-textMain">{order.id}</span>
+            </div>
+            <div className="space-y-3 text-sm">
+              <div className="flex justify-between">
+                <span className="text-textLight">Items</span>
+                <span className="text-textMain">{order.items.reduce((sum, item) => sum + item.quantity, 0)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-textLight">Total</span>
+                <span className="font-medium text-textMain">${order.total.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-textLight">Delivery by</span>
+                <span className="text-textMain">{formatEstimatedDelivery(order.estimatedDelivery)}</span>
+              </div>
+            </div>
+            <div className="mt-4 pt-4 border-t border-black/5">
+              <p className="text-xs text-textLight">
+                Confirmation sent to <span className="text-textMain">{order.shippingAddress.email}</span>
+              </p>
+            </div>
+          </div>
+        )}
         <div className="flex flex-col sm:flex-row gap-3">
           <Link to="/collections">
             <Button className="px-8 py-3.5 uppercase tracking-widest text-xs font-semibold bg-textMain text-white">
@@ -232,8 +357,6 @@ export default function CheckoutPage() {
   return (
     <div className="min-h-screen bg-background pt-24 pb-24 animate-fade-in-up">
       <div className="max-w-7xl mx-auto px-4 sm:px-6">
-
-        {/* Header */}
         <div className="mb-10 lg:mb-14">
           <button
             onClick={() => navigate(-1)}
@@ -246,88 +369,76 @@ export default function CheckoutPage() {
         </div>
 
         <div className="flex flex-col lg:flex-row gap-12 lg:gap-20">
-
-          {/* Left Column: Form */}
           <div className="flex-1 lg:max-w-2xl">
-
-            {/* Section 1: Contact & Shipping */}
             <section className="mb-12">
               <h2 className="text-xl font-serif text-textMain mb-6">Shipping Information</h2>
               <div className="space-y-5">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                  <div>
-                    <label htmlFor="fullName" className="block text-xs font-semibold uppercase tracking-widest text-textMain mb-2">Full Name</label>
-                    <input
-                      type="text"
-                      id="fullName"
-                      name="fullName"
-                      value={form.fullName}
-                      onChange={handleInputChange}
-                      className="w-full px-4 py-3 bg-white border border-black/10 rounded-xl text-textMain focus:outline-none focus:ring-2 focus:ring-brand/40 focus:border-transparent transition-all"
-                      placeholder="Jane Doe"
-                    />
-                  </div>
-                  <div>
-                    <label htmlFor="phone" className="block text-xs font-semibold uppercase tracking-widest text-textMain mb-2">Phone</label>
-                    <input
-                      type="tel"
-                      id="phone"
-                      name="phone"
-                      value={form.phone}
-                      onChange={handleInputChange}
-                      className="w-full px-4 py-3 bg-white border border-black/10 rounded-xl text-textMain focus:outline-none focus:ring-2 focus:ring-brand/40 focus:border-transparent transition-all"
-                      placeholder="+1 (555) 000-0000"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label htmlFor="email" className="block text-xs font-semibold uppercase tracking-widest text-textMain mb-2">Email</label>
-                  <input
-                    type="email"
-                    id="email"
-                    name="email"
-                    value={form.email}
+                  <InputField
+                    id="fullName"
+                    label="Full Name"
+                    value={form.fullName}
                     onChange={handleInputChange}
-                    className="w-full px-4 py-3 bg-white border border-black/10 rounded-xl text-textMain focus:outline-none focus:ring-2 focus:ring-brand/40 focus:border-transparent transition-all"
-                    placeholder="jane@example.com"
+                    onBlur={() => handleBlur('fullName')}
+                    placeholder="Jane Doe"
+                    error={touched.has('fullName') ? errors.fullName : undefined}
+                  />
+                  <InputField
+                    id="phone"
+                    label="Phone"
+                    type="tel"
+                    value={form.phone}
+                    onChange={handleInputChange}
+                    onBlur={() => handleBlur('phone')}
+                    placeholder="+1 (555) 000-0000"
+                    error={touched.has('phone') ? errors.phone : undefined}
                   />
                 </div>
 
-                <div>
-                  <label htmlFor="address" className="block text-xs font-semibold uppercase tracking-widest text-textMain mb-2">Address</label>
-                  <input
-                    type="text"
-                    id="address"
-                    name="address"
-                    value={form.address}
-                    onChange={handleInputChange}
-                    className="w-full px-4 py-3 bg-white border border-black/10 rounded-xl text-textMain focus:outline-none focus:ring-2 focus:ring-brand/40 focus:border-transparent transition-all"
-                    placeholder="123 Fashion Ave, Apt 4"
-                  />
-                </div>
+                <InputField
+                  id="email"
+                  label="Email"
+                  type="email"
+                  value={form.email}
+                  onChange={handleInputChange}
+                  onBlur={() => handleBlur('email')}
+                  placeholder="jane@example.com"
+                  error={touched.has('email') ? errors.email : undefined}
+                />
+
+                <InputField
+                  id="address"
+                  label="Address"
+                  value={form.address}
+                  onChange={handleInputChange}
+                  onBlur={() => handleBlur('address')}
+                  placeholder="123 Fashion Ave, Apt 4"
+                  error={touched.has('address') ? errors.address : undefined}
+                />
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                  <InputField
+                    id="city"
+                    label="City"
+                    value={form.city}
+                    onChange={handleInputChange}
+                    onBlur={() => handleBlur('city')}
+                    placeholder="New York"
+                    error={touched.has('city') ? errors.city : undefined}
+                  />
                   <div>
-                    <label htmlFor="city" className="block text-xs font-semibold uppercase tracking-widest text-textMain mb-2">City</label>
-                    <input
-                      type="text"
-                      id="city"
-                      name="city"
-                      value={form.city}
-                      onChange={handleInputChange}
-                      className="w-full px-4 py-3 bg-white border border-black/10 rounded-xl text-textMain focus:outline-none focus:ring-2 focus:ring-brand/40 focus:border-transparent transition-all"
-                      placeholder="New York"
-                    />
-                  </div>
-                  <div>
-                    <label htmlFor="country" className="block text-xs font-semibold uppercase tracking-widest text-textMain mb-2">Country</label>
+                    <label htmlFor="country" className="block text-xs font-semibold uppercase tracking-widest text-textMain mb-2">
+                      Country
+                    </label>
                     <select
                       id="country"
                       name="country"
                       value={form.country}
                       onChange={handleInputChange}
-                      className="w-full px-4 py-3 bg-white border border-black/10 rounded-xl text-textMain focus:outline-none focus:ring-2 focus:ring-brand/40 focus:border-transparent transition-all appearance-none"
+                      onBlur={() => handleBlur('country')}
+                      className={`w-full px-4 py-3 bg-white border rounded-xl text-textMain focus:outline-none focus:ring-2 focus:border-transparent transition-all appearance-none ${
+                        touched.has('country') && errors.country ? 'border-red-300 focus:ring-red-200' : 'border-black/10 focus:ring-brand/40'
+                      }`}
                     >
                       <option value="" disabled>Select Country</option>
                       <option value="US">United States</option>
@@ -336,6 +447,12 @@ export default function CheckoutPage() {
                       <option value="AU">Australia</option>
                       <option value="EU">European Union</option>
                     </select>
+                    {touched.has('country') && errors.country && (
+                      <p className="mt-1.5 text-xs text-red-500 flex items-center gap-1">
+                        <AlertCircle size={12} />
+                        {errors.country}
+                      </p>
+                    )}
                   </div>
                 </div>
               </div>
@@ -386,66 +503,50 @@ export default function CheckoutPage() {
 
               {form.paymentMethod === 'credit_card' && (
                 <div className="space-y-5">
-                  <div>
-                    <label htmlFor="cardNumber" className="block text-xs font-semibold uppercase tracking-widest text-textMain mb-2">
-                      Card Number
-                    </label>
-                    <input
-                      type="text"
-                      id="cardNumber"
-                      name="cardNumber"
-                      inputMode="numeric"
-                      autoComplete="cc-number"
-                      value={form.cardNumber}
-                      onChange={handleInputChange}
-                      className="w-full px-4 py-3 bg-white border border-black/10 rounded-xl text-textMain focus:outline-none focus:ring-2 focus:ring-brand/40 focus:border-transparent transition-all"
-                      placeholder="1234 5678 9012 3456"
-                    />
-                  </div>
+                  <InputField
+                    id="cardNumber"
+                    label="Card Number"
+                    inputMode="numeric"
+                    autoComplete="cc-number"
+                    value={form.cardNumber}
+                    onChange={handleInputChange}
+                    onBlur={() => handleBlur('cardNumber')}
+                    placeholder="1234 5678 9012 3456"
+                    error={touched.has('cardNumber') ? errors.cardNumber : undefined}
+                  />
 
                   <div className="grid grid-cols-2 gap-5">
-                    <div>
-                      <label htmlFor="expiry" className="block text-xs font-semibold uppercase tracking-widest text-textMain mb-2">
-                        Expiry
-                      </label>
-                      <input
-                        type="text"
-                        id="expiry"
-                        name="expiry"
-                        inputMode="numeric"
-                        autoComplete="cc-exp"
-                        value={form.expiry}
-                        onChange={handleInputChange}
-                        className="w-full px-4 py-3 bg-white border border-black/10 rounded-xl text-textMain focus:outline-none focus:ring-2 focus:ring-brand/40 focus:border-transparent transition-all"
-                        placeholder="MM/YY"
-                      />
-                    </div>
-                    <div>
-                      <label htmlFor="cvv" className="block text-xs font-semibold uppercase tracking-widest text-textMain mb-2">
-                        CVV
-                      </label>
-                      <input
-                        type="password"
-                        id="cvv"
-                        name="cvv"
-                        inputMode="numeric"
-                        autoComplete="cc-csc"
-                        value={form.cvv}
-                        onChange={handleInputChange}
-                        className="w-full px-4 py-3 bg-white border border-black/10 rounded-xl text-textMain focus:outline-none focus:ring-2 focus:ring-brand/40 focus:border-transparent transition-all"
-                        placeholder="123"
-                      />
-                    </div>
+                    <InputField
+                      id="expiry"
+                      label="Expiry"
+                      inputMode="numeric"
+                      autoComplete="cc-exp"
+                      value={form.expiry}
+                      onChange={handleInputChange}
+                      onBlur={() => handleBlur('expiry')}
+                      placeholder="MM/YY"
+                      error={touched.has('expiry') ? errors.expiry : undefined}
+                    />
+                    <InputField
+                      id="cvv"
+                      label="CVV"
+                      type="password"
+                      inputMode="numeric"
+                      autoComplete="cc-csc"
+                      value={form.cvv}
+                      onChange={handleInputChange}
+                      onBlur={() => handleBlur('cvv')}
+                      placeholder="123"
+                      error={touched.has('cvv') ? errors.cvv : undefined}
+                    />
                   </div>
                 </div>
               )}
             </section>
 
-
             <hr className="border-black/5 mb-12" />
           </div>
 
-          {/* Right Column: Order Summary */}
           <div className="lg:w-[420px] shrink-0">
             <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-black/5 sticky top-28">
               <h2 className="text-xl font-serif text-textMain mb-6">Order Summary</h2>
@@ -494,7 +595,6 @@ export default function CheckoutPage() {
                 )}
               </div>
 
-              {/* Items */}
               <div className="max-h-[40vh] overflow-y-auto hide-scrollbar mb-6 pr-2">
                 <ul className="flex flex-col gap-5">
                   {items.map((item, index) => (
@@ -511,7 +611,7 @@ export default function CheckoutPage() {
                         </Link>
                         {(item.size || item.color) && (
                           <p className="text-[11px] text-textLight uppercase tracking-wide mb-1">
-                            {item.color}{item.color && item.size && ' · '}{item.size}
+                            {item.color}{item.color && item.size && ' / '}{item.size}
                           </p>
                         )}
                         <p className="text-xs text-textLight">Qty: {item.quantity}</p>
@@ -526,7 +626,6 @@ export default function CheckoutPage() {
 
               <hr className="border-black/5 mb-6" />
 
-              {/* Totals */}
               <div className="space-y-4 mb-8">
                 <div className="flex justify-between items-center text-sm">
                   <span className="text-textLight">Subtotal</span>
@@ -557,13 +656,15 @@ export default function CheckoutPage() {
                 <p className="text-xs text-brand mb-6">You are saving ${cartTotals.discount.toFixed(2)} on this order.</p>
               )}
 
-              {/* Action */}
               <Button
                 onClick={handlePlaceOrder}
                 isLoading={isSubmitting}
                 disabled={!isFormValid || items.length === 0}
-                className={`w-full py-4 text-sm tracking-widest uppercase font-semibold ${isFormValid && items.length > 0 ? 'bg-brand hover:opacity-90 text-white' : 'bg-black/10 text-textLight hover:bg-black/10 cursor-not-allowed'
-                  }`}
+                className={`w-full py-4 text-sm tracking-widest uppercase font-semibold ${
+                  isFormValid && items.length > 0 
+                    ? 'bg-brand hover:opacity-90 text-white' 
+                    : 'bg-black/10 text-textLight hover:bg-black/10 cursor-not-allowed'
+                }`}
               >
                 Place Order
               </Button>
@@ -574,7 +675,6 @@ export default function CheckoutPage() {
               )}
             </div>
           </div>
-
         </div>
       </div>
     </div>
