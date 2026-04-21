@@ -35,9 +35,11 @@ export default function SearchPage() {
 
   const filteredProducts = useMemo(() => {
     const normalizedQuery = debouncedQuery.toLowerCase();
-    if (!normalizedQuery) return products;
+    const activeProducts = products.filter((product) => product.isActive);
 
-    return products.filter((product) => {
+    if (!normalizedQuery) return activeProducts;
+
+    return activeProducts.filter((product) => {
       const nameMatch = product.name.toLowerCase().includes(normalizedQuery);
       const categoryName = categories.find((category) => category.id === product.categoryId)?.name ?? '';
       const categoryMatch = categoryName.toLowerCase().includes(normalizedQuery);

@@ -1,7 +1,12 @@
 import { useState, FormEvent } from 'react';
 import { Mail, Check } from 'lucide-react';
+import { NewsletterSection } from '../../types/landing';
 
-export default function Newsletter() {
+type NewsletterProps = {
+  data: NewsletterSection;
+};
+
+export default function Newsletter({ data }: NewsletterProps) {
   const [email, setEmail] = useState('');
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -26,9 +31,9 @@ export default function Newsletter() {
   return (
     <section className="bg-brand py-24 sm:py-32 px-6 text-center text-white">
       <div className="max-w-2xl mx-auto flex flex-col items-center">
-        <h2 className="text-3xl sm:text-4xl md:text-5xl font-serif mb-6">Join the Community</h2>
+        <h2 className="text-3xl sm:text-4xl md:text-5xl font-serif mb-6">{data.title}</h2>
         <p className="text-base sm:text-lg text-white/70 mb-10 sm:mb-12 max-w-md mx-auto leading-relaxed">
-          Subscribe to receive exclusive access to new collections, special offers, and styling tips.
+          {data.subtitle}
         </p>
 
         {isSubmitted ? (
@@ -50,7 +55,7 @@ export default function Newsletter() {
               />
               <input
                 type="email"
-                placeholder="Your email address"
+                placeholder={data.placeholder}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="w-full bg-transparent border-b border-white/30 pb-3 pt-1 text-white placeholder:text-white/40 focus:outline-none focus:border-white transition-colors duration-300 text-base sm:text-lg sm:pl-7"

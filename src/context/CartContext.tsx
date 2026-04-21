@@ -67,10 +67,10 @@ const getDiscountForSubtotal = (subtotal: number, couponCode: string): Discount 
   const normalizedCode = normalizeCouponCode(couponCode);
 
   const eligibleDiscounts = discounts.filter((discount) => {
-    if (!discount.active) return false;
-    if ((discount.minOrderValue ?? 0) > subtotal) return false;
-    if (discount.couponCode) {
-      return normalizeCouponCode(discount.couponCode) === normalizedCode;
+    if (!discount.isActive) return false;
+    if ((discount.minOrderAmount ?? 0) > subtotal) return false;
+    if (discount.code) {
+      return normalizeCouponCode(discount.code) === normalizedCode;
     }
     return true;
   });
@@ -126,15 +126,15 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
   const freeShippingThreshold = useMemo(() => {
     const freeRules = shippingRules
-      .filter((rule) => rule.active && rule.cost === 0 && rule.minOrderValue > 0)
-      .sort((a, b) => a.minOrderValue - b.minOrderValue);
-    return freeRules.length > 0 ? freeRules[0].minOrderValue : 0;
+      .filter((rule) => rule.isActive && rule.cost === 0 && rule.minOrderAmount > 0)
+      .sort((a, b) => a.minOrderAmount - b.minOrderAmount);
+    return freeRules.length > 0 ? freeRules[0].minOrderAmount : 0;
   }, []);
 
   const shippingCost = useMemo(() => {
     const matchingRule = shippingRules
-      .filter((rule) => rule.active && discountedSubtotal >= rule.minOrderValue)
-      .sort((a, b) => b.minOrderValue - a.minOrderValue)[0];
+      .filter((rule) => rule.isActive && discountedSubtotal >= rule.minOrderAmount)
+      .sort((a, b) => b.minOrderAmount - a.minOrderAmount)[0];
     return matchingRule ? matchingRule.cost : 0;
   }, [discountedSubtotal]);
 
@@ -206,7 +206,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     }
 
     const matchingDiscounts = discounts.filter(
-      (discount) => discount.active && normalizeCouponCode(discount.couponCode ?? '') === normalizedCode,
+      (discount) => discount.isActive && normalizeCouponCode(discount.code ?? '') === normalizedCode,
     );
 
     if (matchingDiscounts.length === 0) {
@@ -214,11 +214,11 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     }
 
     const eligibleDiscount = matchingDiscounts.find(
-      (discount) => (discount.minOrderValue ?? 0) <= subtotal,
+      (discount) => (discount.minOrderAmount ?? 0) <= subtotal,
     );
 
     if (!eligibleDiscount) {
-      const minOrder = Math.min(...matchingDiscounts.map((discount) => discount.minOrderValue ?? 0));
+      const minOrder = Math.min(...matchingDiscounts.map((discount) => discount.minOrderAmount ?? 0));
       const amountNeeded = Math.max(0, minOrder - subtotal);
       return {
         success: false,

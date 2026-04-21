@@ -77,7 +77,7 @@ export default function ProductPage() {
         productId: product.id,
         name: product.name,
         price: product.price,
-        image: product.image,
+        image: product.images[0] || '',
         size: selectedSize || undefined,
         color: selectedColor || undefined,
         quantity,
@@ -101,7 +101,7 @@ export default function ProductPage() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-10 lg:gap-14 items-start mb-20">
           <div className="bg-gray-100 rounded-3xl overflow-hidden aspect-[4/5] md:sticky md:top-28">
-            <ImageCarousel images={product.images?.length ? product.images : [product.image]} />
+            <ImageCarousel images={product.images} />
           </div>
 
           <div>

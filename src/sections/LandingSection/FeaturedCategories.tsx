@@ -1,19 +1,25 @@
 import { ArrowRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { categories } from '../../data/mockData';
+import { FeaturedCategoriesSection } from '../../types/landing';
+import { Category } from '../../types/product';
 
-export default function FeaturedCategories() {
+type FeaturedCategoriesProps = {
+  data: FeaturedCategoriesSection;
+  categories: Category[];
+};
+
+export default function FeaturedCategories({ data, categories }: FeaturedCategoriesProps) {
   const navigate = useNavigate();
 
-  const featuredCategories = categories
-    .filter((category) => category.featured)
-    .sort((a, b) => (a.order ?? Number.MAX_SAFE_INTEGER) - (b.order ?? Number.MAX_SAFE_INTEGER));
+  const featuredCategories = data.categoryIds
+    .map((categoryId) => categories.find((category) => category.id === categoryId && category.isActive))
+    .filter((category): category is Category => Boolean(category));
 
   return (
     <section className="bg-white py-24 px-6">
       <div className="max-w-7xl mx-auto">
         <h2 className="text-center text-3xl sm:text-4xl font-serif text-textMain mb-12 sm:mb-16">
-          Curated Categories
+          {data.title}
         </h2>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6 md:gap-8">

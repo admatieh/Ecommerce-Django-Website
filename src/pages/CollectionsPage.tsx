@@ -32,7 +32,7 @@ export default function CollectionsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const categorySlug = searchParams.get('category');
   const selectedCategory = useMemo(
-    () => categories.find((category) => category.slug === categorySlug),
+    () => categories.find((category) => category.slug === categorySlug && category.isActive),
     [categorySlug],
   );
 
@@ -132,8 +132,8 @@ export default function CollectionsPage() {
 
   const filteredAndSortedProducts = useMemo(() => {
     let result = selectedCategory
-      ? products.filter((product) => product.categoryId === selectedCategory.id)
-      : [...products];
+      ? products.filter((product) => product.categoryId === selectedCategory.id && product.isActive)
+      : products.filter((product) => product.isActive);
 
     if (searchQuery.trim()) {
       const lowerQuery = searchQuery.toLowerCase();
@@ -153,7 +153,7 @@ export default function CollectionsPage() {
     }
 
     if (filters.inStock !== null) {
-      result = result.filter(p => p.inStock !== false);
+      result = result.filter(p => p.stock > 0);
     }
 
     if (sortOption === 'price-asc') {
@@ -162,10 +162,7 @@ export default function CollectionsPage() {
       result.sort((a, b) => b.price - a.price);
     } else if (sortOption === 'newest') {
       result.sort((a, b) => {
-        if (a.createdAt && b.createdAt) {
-          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-        }
-        return Number(b.id) - Number(a.id);
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
       });
     }
 

@@ -26,7 +26,7 @@ export default function ProductCard({ product }: ProductCardProps) {
   const cardContent = (
     <>
       <div className="relative overflow-hidden rounded-2xl mb-4 bg-gray-100 aspect-[3/4] shadow-sm group-hover:shadow-lg transition-shadow duration-500">
-        <ImageCarousel images={product.images?.length ? product.images : [product.image]} />
+        <ImageCarousel images={product.images} />
         {categoryName && (
           <span className="absolute top-3 left-3 z-10 bg-white/80 backdrop-blur-md text-[11px] font-medium uppercase tracking-wider text-textMain px-3 py-1 rounded-full opacity-100 transition-opacity duration-300">
             {categoryName}
