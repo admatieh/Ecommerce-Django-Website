@@ -7,6 +7,7 @@
     scroll-behavior: smooth;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
   }
 
   ::selection {
@@ -17,6 +18,83 @@
   /* Prevent overscroll bounce on iOS */
   body {
     overscroll-behavior: none;
+  }
+
+  /* Improve tap targets on mobile */
+  @media (pointer: coarse) {
+    button,
+    a,
+    input,
+    select,
+    textarea {
+      min-height: 44px;
+    }
+  }
+
+  /* Custom focus styles */
+  *:focus-visible {
+    outline: 2px solid rgba(107, 128, 103, 0.4);
+    outline-offset: 2px;
+  }
+
+  /* Smooth image loading */
+  img {
+    content-visibility: auto;
+  }
+}
+
+@layer components {
+  /* Premium button hover effect */
+  .btn-hover-lift {
+    @apply transition-all duration-300 ease-premium;
+  }
+
+  .btn-hover-lift:hover {
+    @apply -translate-y-0.5 shadow-soft-lg;
+  }
+
+  .btn-hover-lift:active {
+    @apply translate-y-0 scale-[0.98];
+  }
+
+  /* Card hover effect */
+  .card-hover {
+    @apply transition-all duration-500 ease-premium;
+  }
+
+  .card-hover:hover {
+    @apply -translate-y-1 shadow-premium;
+  }
+
+  /* Link underline animation */
+  .link-underline {
+    @apply relative;
+  }
+
+  .link-underline::after {
+    content: '';
+    @apply absolute bottom-0 left-0 w-0 h-px bg-current transition-all duration-300;
+  }
+
+  .link-underline:hover::after {
+    @apply w-full;
+  }
+
+  /* Glass effect */
+  .glass {
+    @apply bg-white/80 backdrop-blur-md;
+  }
+
+  /* Shimmer loading effect */
+  .shimmer {
+    background: linear-gradient(
+      90deg,
+      rgba(0, 0, 0, 0.03) 0%,
+      rgba(0, 0, 0, 0.06) 50%,
+      rgba(0, 0, 0, 0.03) 100%
+    );
+    background-size: 200% 100%;
+    @apply animate-shimmer;
   }
 }
 
@@ -29,6 +107,7 @@
     -ms-overflow-style: none;
     scrollbar-width: none;
   }
+
   .hide-scrollbar::-webkit-scrollbar {
     display: none;
   }
@@ -39,4 +118,55 @@
   .delay-300 { animation-delay: 300ms; }
   .delay-400 { animation-delay: 400ms; }
   .delay-500 { animation-delay: 500ms; }
+  .delay-600 { animation-delay: 600ms; }
+  .delay-700 { animation-delay: 700ms; }
+  .delay-800 { animation-delay: 800ms; }
+
+  /* Text balance for titles */
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .text-pretty {
+    text-wrap: pretty;
+  }
+
+  /* Safe area padding for mobile */
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom, 0);
+  }
+
+  .safe-top {
+    padding-top: env(safe-area-inset-top, 0);
+  }
+
+  /* Reduced motion preference */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+
+  /* Better touch scrolling */
+  .touch-pan-y {
+    touch-action: pan-y;
+  }
+
+  .touch-pan-x {
+    touch-action: pan-x;
+  }
+
+  /* Gradient text */
+  .text-gradient {
+    @apply bg-clip-text text-transparent bg-gradient-to-r;
+  }
+
+  /* Premium transitions */
+  .transition-premium {
+    @apply transition-all duration-500 ease-premium;
+  }
 }

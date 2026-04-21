@@ -1,19 +1,163 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Heart, Minus, Plus, ShoppingBag } from 'lucide-react';
+import { useEffect, useState, useCallback } from 'react';
+import { Heart, Minus, Plus, ShoppingBag, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
 import Button from '../components/Button';
-import ImageCarousel from '../components/ImageCarousel';
 import ProductCard from '../components/ProductCard';
+import Loader from '../components/Loader';
 import { useCart } from '../context/CartContext';
-import { categories, products } from '../data/mockData';
+import { getProductById, getRelatedProducts, getCategoryForProduct } from '../services/productService';
+import { Product, Category } from '../types/product';
+
+function ProductSkeleton() {
+  return (
+    <div className="min-h-screen bg-background pt-28 sm:pt-32 pb-32 md:pb-24 px-6 lg:px-12 animate-fade-in">
+      <div className="max-w-7xl mx-auto">
+        <div className="h-4 w-40 bg-black/5 rounded-full mb-8 sm:mb-10" />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-10 lg:gap-14 items-start mb-20">
+          <div className="bg-black/[0.03] rounded-3xl aspect-[4/5] animate-pulse" />
+          <div className="space-y-6">
+            <div className="h-4 w-20 bg-black/5 rounded-full" />
+            <div className="h-10 w-3/4 bg-black/5 rounded-lg" />
+            <div className="h-8 w-28 bg-black/5 rounded-lg" />
+            <div className="space-y-2">
+              <div className="h-4 w-full bg-black/5 rounded-full" />
+              <div className="h-4 w-5/6 bg-black/5 rounded-full" />
+              <div className="h-4 w-4/6 bg-black/5 rounded-full" />
+            </div>
+            <div className="pt-4 space-y-4">
+              <div className="h-4 w-16 bg-black/5 rounded-full" />
+              <div className="flex gap-2">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="h-10 w-20 bg-black/5 rounded-full" />
+                ))}
+              </div>
+            </div>
+            <div className="pt-4 space-y-4">
+              <div className="h-4 w-12 bg-black/5 rounded-full" />
+              <div className="flex gap-2">
+                {[1, 2, 3, 4].map((i) => (
+                  <div key={i} className="h-11 w-11 bg-black/5 rounded-full" />
+                ))}
+              </div>
+            </div>
+            <div className="pt-6 flex gap-3">
+              <div className="h-14 flex-1 bg-black/5 rounded-full" />
+              <div className="h-14 w-32 bg-black/5 rounded-full" />
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ImageGallery({ images }: { images: string[] }) {
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [loadedImages, setLoadedImages] = useState<Set<number>>(new Set([0]));
+
+  const handleImageLoad = useCallback((index: number) => {
+    setLoadedImages((prev) => {
+      const next = new Set(prev);
+      next.add(index);
+      return next;
+    });
+  }, []);
+
+  const goToSlide = (index: number) => {
+    setCurrentIndex(index);
+  };
+
+  const nextSlide = () => {
+    setCurrentIndex((prev) => (prev === images.length - 1 ? 0 : prev + 1));
+  };
+
+  const prevSlide = () => {
+    setCurrentIndex((prev) => (prev === 0 ? images.length - 1 : prev - 1));
+  };
+
+  if (!images || images.length === 0) return null;
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="relative overflow-hidden rounded-3xl bg-gray-100 aspect-[4/5] group">
+        <div
+          className="flex transition-transform duration-500 ease-out h-full w-full"
+          style={{ transform: `translateX(-${currentIndex * 100}%)` }}
+        >
+          {images.map((img, idx) => (
+            <div key={img} className="relative w-full h-full shrink-0 bg-gray-100">
+              <img
+                src={img}
+                alt={`Product image ${idx + 1}`}
+                onLoad={() => handleImageLoad(idx)}
+                loading={idx === 0 ? 'eager' : 'lazy'}
+                className={`w-full h-full object-cover transition-all duration-700 ease-out group-hover:scale-[1.02] ${
+                  loadedImages.has(idx) ? 'opacity-100' : 'opacity-0'
+                }`}
+              />
+              {!loadedImages.has(idx) && (
+                <div className="absolute inset-0 animate-pulse bg-black/[0.03]" />
+              )}
+            </div>
+          ))}
+        </div>
+
+        {images.length > 1 && (
+          <>
+            <button
+              onClick={prevSlide}
+              className="absolute left-3 top-1/2 -translate-y-1/2 p-2.5 bg-white/90 backdrop-blur-md rounded-full text-textMain hover:bg-white transition-all duration-300 opacity-0 group-hover:opacity-100 active:scale-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 shadow-sm"
+              aria-label="Previous image"
+            >
+              <ChevronLeft size={18} strokeWidth={1.5} />
+            </button>
+            <button
+              onClick={nextSlide}
+              className="absolute right-3 top-1/2 -translate-y-1/2 p-2.5 bg-white/90 backdrop-blur-md rounded-full text-textMain hover:bg-white transition-all duration-300 opacity-0 group-hover:opacity-100 active:scale-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 shadow-sm"
+              aria-label="Next image"
+            >
+              <ChevronRight size={18} strokeWidth={1.5} />
+            </button>
+          </>
+        )}
+      </div>
+
+      {images.length > 1 && (
+        <div className="flex gap-2 overflow-x-auto hide-scrollbar pb-1">
+          {images.map((img, idx) => (
+            <button
+              key={idx}
+              onClick={() => goToSlide(idx)}
+              className={`relative shrink-0 w-16 h-20 sm:w-20 sm:h-24 rounded-xl overflow-hidden transition-all duration-300 ${
+                currentIndex === idx
+                  ? 'ring-2 ring-textMain ring-offset-2 ring-offset-background'
+                  : 'opacity-60 hover:opacity-100'
+              }`}
+              aria-label={`View image ${idx + 1}`}
+            >
+              <img
+                src={img}
+                alt={`Thumbnail ${idx + 1}`}
+                className="w-full h-full object-cover"
+                loading="lazy"
+              />
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function ProductPage() {
   const { id } = useParams();
   const productId = Number(id);
-  const product = products.find((item) => item.id === productId);
-  const productCategory = product ? categories.find((category) => category.id === product.categoryId) : undefined;
   const { addToCart } = useCart();
 
+  const [product, setProduct] = useState<Product | null>(null);
+  const [category, setCategory] = useState<Category | undefined>(undefined);
+  const [relatedProducts, setRelatedProducts] = useState<Product[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
   const [selectedColor, setSelectedColor] = useState<string | null>(null);
   const [quantity, setQuantity] = useState<number>(1);
@@ -26,24 +170,46 @@ export default function ProductPage() {
   }, [productId]);
 
   useEffect(() => {
-    if (!product) return;
-    setSelectedSize(product.sizes?.[0] || null);
-    setSelectedColor(product.colors?.[0] || null);
-    setQuantity(1);
-    setIsAdding(false);
-    setIsAdded(false);
-  }, [product]);
+    let isMounted = true;
 
-  const relatedProducts = useMemo(() => {
-    if (!product) return [];
+    const loadProduct = async () => {
+      setIsLoading(true);
+      try {
+        const [fetchedProduct, fetchedRelated] = await Promise.all([
+          getProductById(productId),
+          getRelatedProducts(productId, 4),
+        ]);
 
-    const sameCategory = products.filter(
-      (item) => item.id !== product.id && item.categoryId === product.categoryId,
-    );
-    const fallback = products.filter((item) => item.id !== product.id);
+        if (!isMounted) return;
 
-    return [...sameCategory, ...fallback].slice(0, 4);
-  }, [product]);
+        setProduct(fetchedProduct);
+        setRelatedProducts(fetchedRelated);
+
+        if (fetchedProduct) {
+          setCategory(getCategoryForProduct(fetchedProduct));
+          setSelectedSize(fetchedProduct.sizes?.[0] || null);
+          setSelectedColor(fetchedProduct.colors?.[0] || null);
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoading(false);
+          setQuantity(1);
+          setIsAdding(false);
+          setIsAdded(false);
+        }
+      }
+    };
+
+    loadProduct();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [productId]);
+
+  if (isLoading) {
+    return <ProductSkeleton />;
+  }
 
   if (!product) {
     return (
@@ -67,6 +233,8 @@ export default function ProductPage() {
   const needsSize = !!product.sizes?.length;
   const needsColor = !!product.colors?.length;
   const canAddToCart = (!needsSize || !!selectedSize) && (!needsColor || !!selectedColor) && quantity > 0;
+  const displayPrice = product.discountPrice ?? product.price;
+  const hasDiscount = product.discountPrice && product.discountPrice < product.price;
 
   const handleAddToCart = () => {
     if (!canAddToCart || isAdding || isAdded) return;
@@ -76,7 +244,7 @@ export default function ProductPage() {
       addToCart({
         productId: product.id,
         name: product.name,
-        price: product.price,
+        price: displayPrice,
         image: product.images[0] || '',
         size: selectedSize || undefined,
         color: selectedColor || undefined,
@@ -84,7 +252,7 @@ export default function ProductPage() {
       });
       setIsAdding(false);
       setIsAdded(true);
-      window.setTimeout(() => setIsAdded(false), 1000);
+      window.setTimeout(() => setIsAdded(false), 1200);
     }, 300);
   };
 
@@ -96,23 +264,45 @@ export default function ProductPage() {
             Collections
           </Link>
           <span>/</span>
-          <span className="text-textMain">{product.name}</span>
+          {category && (
+            <>
+              <Link
+                to={`/collections?category=${category.slug}`}
+                className="hover:text-textMain transition-colors"
+              >
+                {category.name}
+              </Link>
+              <span>/</span>
+            </>
+          )}
+          <span className="text-textMain truncate max-w-[200px]">{product.name}</span>
         </nav>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-10 lg:gap-14 items-start mb-20">
-          <div className="bg-gray-100 rounded-3xl overflow-hidden aspect-[4/5] md:sticky md:top-28">
-            <ImageCarousel images={product.images} />
+          <div className="md:sticky md:top-28">
+            <ImageGallery images={product.images} />
           </div>
 
           <div>
-            {productCategory && (
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-brand mb-3">{productCategory.name}</p>
+            {category && (
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-brand mb-3">
+                {category.name}
+              </p>
             )}
             <h1 className="text-3xl sm:text-4xl font-serif text-textMain mb-3">{product.name}</h1>
-            <p className="text-2xl font-serif text-textMain mb-6">${product.price.toFixed(2)}</p>
+            <div className="flex items-baseline gap-3 mb-6">
+              <p className="text-2xl font-serif text-textMain">${displayPrice.toFixed(2)}</p>
+              {hasDiscount && (
+                <p className="text-lg text-textLight line-through">${product.price.toFixed(2)}</p>
+              )}
+              {hasDiscount && (
+                <span className="text-xs font-semibold uppercase tracking-wider text-brand bg-brand/10 px-2.5 py-1 rounded-full">
+                  Save ${(product.price - product.discountPrice!).toFixed(0)}
+                </span>
+              )}
+            </div>
             <p className="text-sm sm:text-base text-textLight leading-relaxed mb-8 max-w-xl">
-              {product.description ||
-                'Tailored for modern wardrobes, this piece blends premium fabric, clean structure, and timeless styling for day-to-evening wear.'}
+              {product.description}
             </p>
 
             {needsColor && (
@@ -172,13 +362,16 @@ export default function ProductPage() {
                 </button>
                 <span className="text-sm font-medium text-textMain w-8 text-center tabular-nums">{quantity}</span>
                 <button
-                  onClick={() => setQuantity((prev) => prev + 1)}
+                  onClick={() => setQuantity((prev) => Math.min(product.stock, prev + 1))}
                   className="w-10 h-10 flex items-center justify-center text-textLight hover:text-textMain transition-colors active:scale-90"
                   aria-label="Increase quantity"
                 >
                   <Plus size={16} />
                 </button>
               </div>
+              {product.stock <= 5 && product.stock > 0 && (
+                <p className="text-xs text-brand mt-2">Only {product.stock} left in stock</p>
+              )}
             </div>
 
             <div className="hidden md:flex gap-3">
@@ -213,7 +406,7 @@ export default function ProductPage() {
         {relatedProducts.length > 0 && (
           <section>
             <div className="flex items-end justify-between mb-8">
-              <h2 className="text-2xl sm:text-3xl font-serif text-textMain">Related Pieces</h2>
+              <h2 className="text-2xl sm:text-3xl font-serif text-textMain">You May Also Like</h2>
               <Link to="/collections" className="text-sm text-brand font-medium hover:opacity-70 transition-opacity">
                 View all
               </Link>
@@ -227,11 +420,16 @@ export default function ProductPage() {
         )}
       </div>
 
-      <div className="fixed inset-x-0 bottom-0 md:hidden bg-white/95 backdrop-blur-md border-t border-black/10 px-4 py-3">
+      <div className="fixed inset-x-0 bottom-0 md:hidden bg-white/95 backdrop-blur-md border-t border-black/10 px-4 py-3 z-40">
         <div className="max-w-7xl mx-auto flex items-center gap-3">
           <div className="min-w-0">
-            <p className="text-[11px] uppercase tracking-widest text-textLight">{product.name}</p>
-            <p className="text-lg font-serif text-textMain">${product.price.toFixed(2)}</p>
+            <p className="text-[11px] uppercase tracking-widest text-textLight truncate">{product.name}</p>
+            <div className="flex items-baseline gap-2">
+              <p className="text-lg font-serif text-textMain">${displayPrice.toFixed(2)}</p>
+              {hasDiscount && (
+                <p className="text-sm text-textLight line-through">${product.price.toFixed(2)}</p>
+              )}
+            </div>
           </div>
           <Button
             onClick={handleAddToCart}

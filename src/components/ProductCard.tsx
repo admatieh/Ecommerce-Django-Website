@@ -1,7 +1,7 @@
 import { useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { categories } from '../data/mockData';
 import { Product } from '../types/product';
+import { getCategoryForProduct } from '../services/productService';
 import ImageCarousel from './ImageCarousel';
 
 type ProductCardProps = {
@@ -10,7 +10,7 @@ type ProductCardProps = {
 
 export default function ProductCard({ product }: ProductCardProps) {
   const navigate = useNavigate();
-  const categoryName = categories.find((category) => category.id === product.categoryId)?.name;
+  const category = getCategoryForProduct(product);
 
   const navigateToProduct = useCallback(() => {
     navigate(`/product/${product.id}`);
@@ -23,13 +23,21 @@ export default function ProductCard({ product }: ProductCardProps) {
     }
   };
 
+  const displayPrice = product.discountPrice ?? product.price;
+  const hasDiscount = product.discountPrice && product.discountPrice < product.price;
+
   const cardContent = (
     <>
       <div className="relative overflow-hidden rounded-2xl mb-4 bg-gray-100 aspect-[3/4] shadow-sm group-hover:shadow-lg transition-shadow duration-500">
         <ImageCarousel images={product.images} />
-        {categoryName && (
+        {category && (
           <span className="absolute top-3 left-3 z-10 bg-white/80 backdrop-blur-md text-[11px] font-medium uppercase tracking-wider text-textMain px-3 py-1 rounded-full opacity-100 transition-opacity duration-300">
-            {categoryName}
+            {category.name}
+          </span>
+        )}
+        {hasDiscount && (
+          <span className="absolute top-3 right-3 z-10 bg-brand text-white text-[10px] font-semibold uppercase tracking-wider px-2.5 py-1 rounded-full">
+            Sale
           </span>
         )}
       </div>
@@ -37,9 +45,16 @@ export default function ProductCard({ product }: ProductCardProps) {
         <h3 className="text-sm font-medium text-textMain transition-colors duration-200 truncate">
           {product.name}
         </h3>
-        <p className="text-sm text-textLight whitespace-nowrap font-medium">
-          ${typeof product.price === 'number' ? product.price.toFixed(2) : product.price}
-        </p>
+        <div className="flex items-baseline gap-1.5 whitespace-nowrap">
+          <p className="text-sm text-textMain font-medium">
+            ${displayPrice.toFixed(2)}
+          </p>
+          {hasDiscount && (
+            <p className="text-xs text-textLight line-through">
+              ${product.price.toFixed(2)}
+            </p>
+          )}
+        </div>
       </div>
     </>
   );
@@ -51,7 +66,7 @@ export default function ProductCard({ product }: ProductCardProps) {
       onKeyDown={handleKeyDown}
       role="button"
       tabIndex={0}
-      aria-label={`View ${product.name}, $${product.price.toFixed(2)}`}
+      aria-label={`View ${product.name}, $${displayPrice.toFixed(2)}`}
     >
       {cardContent}
     </div>

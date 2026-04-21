@@ -1,8 +1,25 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { Search, X } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
 import ProductCard from '../components/ProductCard';
-import { categories, products } from '../data/mockData';
+import { searchProducts } from '../services/productService';
+import { Product } from '../types/product';
+
+function ProductGridSkeleton({ count = 8 }: { count?: number }) {
+  return (
+    <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6 lg:gap-8">
+      {Array.from({ length: count }).map((_, idx) => (
+        <div key={idx} className="animate-pulse">
+          <div className="bg-black/[0.04] rounded-2xl aspect-[3/4] mb-4" />
+          <div className="flex justify-between items-baseline px-1 gap-2">
+            <div className="h-4 bg-black/[0.04] rounded-full w-2/3" />
+            <div className="h-4 bg-black/[0.04] rounded-full w-16" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 export default function SearchPage() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -10,7 +27,10 @@ export default function SearchPage() {
 
   const [searchInput, setSearchInput] = useState<string>(initialQuery);
   const [debouncedQuery, setDebouncedQuery] = useState<string>(initialQuery);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
 
+  // Debounce search input
   useEffect(() => {
     const timer = window.setTimeout(() => {
       const nextQuery = searchInput.trim();
@@ -20,11 +40,12 @@ export default function SearchPage() {
       } else {
         setSearchParams({}, { replace: true });
       }
-    }, 250);
+    }, 300);
 
     return () => window.clearTimeout(timer);
   }, [searchInput, setSearchParams]);
 
+  // Sync with external URL changes
   useEffect(() => {
     const externalQuery = searchParams.get('q') || '';
     if (externalQuery !== searchInput) {
@@ -33,19 +54,20 @@ export default function SearchPage() {
     }
   }, [searchParams]);
 
-  const filteredProducts = useMemo(() => {
-    const normalizedQuery = debouncedQuery.toLowerCase();
-    const activeProducts = products.filter((product) => product.isActive);
+  // Fetch products
+  const fetchProducts = useCallback(async (query: string) => {
+    setIsLoading(true);
+    try {
+      const results = await searchProducts(query);
+      setProducts(results);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
 
-    if (!normalizedQuery) return activeProducts;
-
-    return activeProducts.filter((product) => {
-      const nameMatch = product.name.toLowerCase().includes(normalizedQuery);
-      const categoryName = categories.find((category) => category.id === product.categoryId)?.name ?? '';
-      const categoryMatch = categoryName.toLowerCase().includes(normalizedQuery);
-      return nameMatch || categoryMatch;
-    });
-  }, [debouncedQuery]);
+  useEffect(() => {
+    fetchProducts(debouncedQuery);
+  }, [debouncedQuery, fetchProducts]);
 
   return (
     <div className="min-h-screen bg-background pt-28 sm:pt-32 pb-24 px-6 lg:px-12 animate-fade-in-up">
@@ -81,11 +103,19 @@ export default function SearchPage() {
         </div>
 
         <p className="text-xs uppercase tracking-widest text-textLight mb-6 sm:mb-8">
-          {filteredProducts.length} {filteredProducts.length === 1 ? 'result' : 'results'}
-          {debouncedQuery ? ` for "${debouncedQuery}"` : ''}
+          {isLoading ? (
+            <span className="animate-pulse">Searching...</span>
+          ) : (
+            <>
+              {products.length} {products.length === 1 ? 'result' : 'results'}
+              {debouncedQuery ? ` for "${debouncedQuery}"` : ''}
+            </>
+          )}
         </p>
 
-        {filteredProducts.length === 0 ? (
+        {isLoading ? (
+          <ProductGridSkeleton />
+        ) : products.length === 0 ? (
           <div className="text-center py-20 sm:py-24 bg-white/60 border border-black/5 rounded-3xl animate-fade-in">
             <div className="w-16 h-16 rounded-full bg-black/[0.03] flex items-center justify-center mx-auto mb-6">
               <Search size={24} strokeWidth={1.5} className="text-textLight" />
@@ -103,7 +133,7 @@ export default function SearchPage() {
           </div>
         ) : (
           <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6 lg:gap-8 animate-fade-in">
-            {filteredProducts.map((product) => (
+            {products.map((product) => (
               <ProductCard key={product.id} product={product} />
             ))}
           </div>
