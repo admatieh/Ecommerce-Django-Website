@@ -1,0 +1,37 @@
+import { ArrowRight } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import ProductCard from '../../components/ProductCard';
+import { products } from '../../data/mockData';
+
+export default function FeaturedProducts() {
+  return (
+    <section className="py-24 px-6 max-w-7xl mx-auto">
+      <div className="flex justify-between items-end mb-12">
+        <h2 className="text-3xl sm:text-4xl font-serif text-textMain">Featured Collection</h2>
+        <Link
+          to="/collections"
+          className="hidden md:inline-flex items-center gap-2 text-sm font-medium text-brand hover:opacity-70 transition-opacity duration-200 group"
+        >
+          View all pieces
+          <ArrowRight size={14} className="transition-transform duration-300 group-hover:translate-x-1" />
+        </Link>
+      </div>
+
+      <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 lg:gap-8">
+        {products.map(product => (
+          <ProductCard key={product.id} product={product} />
+        ))}
+      </div>
+
+      <div className="mt-10 text-center md:hidden">
+        <Link
+          to="/collections"
+          className="inline-flex items-center gap-2 text-sm font-medium text-brand hover:opacity-70 transition-opacity duration-200 group"
+        >
+          View all pieces
+          <ArrowRight size={14} className="transition-transform duration-300 group-hover:translate-x-1" />
+        </Link>
+      </div>
+    </section>
+  );
+}
