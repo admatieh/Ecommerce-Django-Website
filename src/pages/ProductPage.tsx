@@ -5,6 +5,7 @@ import Button from '../components/Button';
 import ProductCard from '../components/ProductCard';
 import { useCart } from '../context/CartContext';
 import { getProductById, getRelatedProducts, getCategoryForProduct } from '../services/productService';
+import { formatPrice } from '../utils/format';
 import { Product, Category } from '../types/product';
 
 function ProductSkeleton() {
@@ -154,7 +155,7 @@ export default function ProductPage() {
   const { addToCart } = useCart();
 
   const [product, setProduct] = useState<Product | null>(null);
-  const [category, setCategory] = useState<Category | undefined>(undefined);
+  const [category, setCategory] = useState<Category | null>(null);
   const [relatedProducts, setRelatedProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string>('');
@@ -314,13 +315,13 @@ export default function ProductPage() {
             )}
             <h1 className="text-3xl sm:text-4xl font-serif text-textMain mb-3">{product.name}</h1>
             <div className="flex items-baseline gap-3 mb-6">
-              <p className="text-2xl font-serif text-textMain">${displayPrice.toFixed(2)}</p>
+              <p className="text-2xl font-serif text-textMain">{formatPrice(displayPrice)}</p>
               {hasDiscount && (
-                <p className="text-lg text-textLight line-through">${product.price.toFixed(2)}</p>
+                <p className="text-lg text-textLight line-through">{formatPrice(product.price)}</p>
               )}
               {hasDiscount && (
                 <span className="text-xs font-semibold uppercase tracking-wider text-brand bg-brand/10 px-2.5 py-1 rounded-full">
-                  Save ${(product.price - product.discountPrice!).toFixed(0)}
+                  Save {formatPrice(product.price - product.discountPrice!)}
                 </span>
               )}
             </div>
@@ -457,9 +458,9 @@ export default function ProductPage() {
           <div className="min-w-0">
             <p className="text-[11px] uppercase tracking-widest text-textLight truncate">{product.name}</p>
             <div className="flex items-baseline gap-2">
-              <p className="text-lg font-serif text-textMain">${displayPrice.toFixed(2)}</p>
+              <p className="text-lg font-serif text-textMain">{formatPrice(displayPrice)}</p>
               {hasDiscount && (
-                <p className="text-sm text-textLight line-through">${product.price.toFixed(2)}</p>
+                <p className="text-sm text-textLight line-through">{formatPrice(product.price)}</p>
               )}
             </div>
           </div>

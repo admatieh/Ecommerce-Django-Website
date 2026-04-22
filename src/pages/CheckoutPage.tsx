@@ -3,7 +3,9 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { ChevronLeft, ShoppingBag, AlertCircle, Check, CreditCard, Banknote } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { createOrder, formatEstimatedDelivery } from '../services/orderService';
+import { getAddresses } from '../services/authService';
 import { Order, ShippingAddress, OrderItem } from '../types/product';
+import { Address } from '../types/auth';
 import Button from '../components/Button';
 
 type PaymentMethod = 'cod' | 'card';
@@ -112,6 +114,52 @@ export default function CheckoutPage() {
   const [totalsPulse, setTotalsPulse] = useState<boolean>(false);
   const [submitError, setSubmitError] = useState<string>('');
   const lastTotalRef = useRef<number>(cartTotals.total);
+
+  const [addresses, setAddresses] = useState<Address[]>([]);
+  const [selectedAddressId, setSelectedAddressId] = useState<number | 'new'>('new');
+
+  useEffect(() => {
+    getAddresses().then(data => {
+      setAddresses(data);
+      const defaultAddr = data.find(a => a.isDefault) || data[0];
+      if (defaultAddr) {
+        setSelectedAddressId(defaultAddr.id);
+        setForm(prev => ({
+          ...prev,
+          fullName: defaultAddr.fullName,
+          phone: defaultAddr.phone,
+          address: defaultAddr.addressLine,
+          city: defaultAddr.city,
+          country: defaultAddr.country
+        }));
+      }
+    }).catch(console.error);
+  }, []);
+
+  const handleAddressSelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const val = e.target.value;
+    if (val === 'new') {
+      setSelectedAddressId('new');
+      setForm(prev => ({
+        ...prev,
+        fullName: '', phone: '', address: '', city: '', country: ''
+      }));
+    } else {
+      const id = parseInt(val, 10);
+      setSelectedAddressId(id);
+      const addr = addresses.find(a => a.id === id);
+      if (addr) {
+        setForm(prev => ({
+          ...prev,
+          fullName: addr.fullName,
+          phone: addr.phone,
+          address: addr.addressLine,
+          city: addr.city,
+          country: addr.country
+        }));
+      }
+    }
+  };
 
   const finalTotal = cartTotals.total;
   const estimatedDelivery = useMemo(() => {
@@ -318,6 +366,26 @@ export default function CheckoutPage() {
           <div className="flex-1 lg:max-w-2xl">
             <section className="mb-12">
               <h2 className="text-xl font-serif text-textMain mb-6">Shipping Information</h2>
+              {addresses.length > 0 && (
+                <div className="mb-6">
+                  <label htmlFor="savedAddress" className="block text-xs font-semibold uppercase tracking-widest text-textMain mb-2">
+                    Saved Addresses
+                  </label>
+                  <select
+                    id="savedAddress"
+                    value={selectedAddressId}
+                    onChange={handleAddressSelect}
+                    className="w-full px-4 py-3 bg-white border border-black/10 rounded-xl text-textMain focus:outline-none focus:ring-2 focus:ring-brand/40 transition-all appearance-none"
+                  >
+                    <option value="new">Enter new address...</option>
+                    {addresses.map((addr) => (
+                      <option key={addr.id} value={addr.id}>
+                        {addr.fullName} - {addr.addressLine}, {addr.city}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
               <div className="space-y-5">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                   <InputField

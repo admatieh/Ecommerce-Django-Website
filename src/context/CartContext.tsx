@@ -1,13 +1,9 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { CartItem, CartTotals, Discount } from '../types/product';
-import { calculateCartTotals, getPricingConfig, validateCoupon } from '../services/pricingService';
-
-const CART_STORAGE_KEY = 'velora-cart-state-v2';
-
-type StoredCartState = {
-  items: CartItem[];
-  appliedCouponCode: string;
-};
+import { calculateCartTotals, fetchPricingConfig, getPricingConfig, validateCoupon } from '../services/pricingService';
+import type { PricingConfig } from '../services/pricingService';
+import { apiFetch } from '../services/api';
+import { useAuth } from './AuthContext';
 
 type CouponApplyResult = {
   success: boolean;
@@ -15,46 +11,6 @@ type CouponApplyResult = {
 };
 
 const normalizeCouponCode = (code: string): string => code.trim().toUpperCase();
-
-const sanitizeCartItems = (value: unknown): CartItem[] => {
-  if (!Array.isArray(value)) return [];
-
-  return value.filter(
-    (item): item is CartItem =>
-      typeof item === 'object' &&
-      item !== null &&
-      typeof (item as CartItem).productId === 'number' &&
-      typeof (item as CartItem).name === 'string' &&
-      typeof (item as CartItem).price === 'number' &&
-      typeof (item as CartItem).image === 'string' &&
-      typeof (item as CartItem).quantity === 'number' &&
-      (item as CartItem).quantity > 0,
-  );
-};
-
-const readStoredCartState = (): StoredCartState => {
-  if (typeof window === 'undefined') return { items: [], appliedCouponCode: '' };
-
-  try {
-    const storedState = window.localStorage.getItem(CART_STORAGE_KEY);
-    if (!storedState) return { items: [], appliedCouponCode: '' };
-
-    const parsed = JSON.parse(storedState) as unknown;
-    if (typeof parsed !== 'object' || parsed === null) {
-      return { items: [], appliedCouponCode: '' };
-    }
-
-    const typedParsed = parsed as Partial<StoredCartState>;
-    return {
-      items: sanitizeCartItems(typedParsed.items),
-      appliedCouponCode: typeof typedParsed.appliedCouponCode === 'string'
-        ? normalizeCouponCode(typedParsed.appliedCouponCode)
-        : '',
-    };
-  } catch {
-    return { items: [], appliedCouponCode: '' };
-  }
-};
 
 interface CartContextType {
   items: CartItem[];
@@ -77,11 +33,28 @@ interface CartContextType {
 const CartContext = createContext<CartContextType | undefined>(undefined);
 
 export function CartProvider({ children }: { children: React.ReactNode }) {
-  const storedState = useMemo(() => readStoredCartState(), []);
-  const pricingConfig = useMemo(() => getPricingConfig(), []);
-  const [items, setItems] = useState<CartItem[]>(storedState.items);
-  const [appliedCouponCode, setAppliedCouponCode] = useState<string>(storedState.appliedCouponCode);
+  const { isAuthenticated } = useAuth();
+  const [pricingConfig, setPricingConfig] = useState<PricingConfig>(() => getPricingConfig());
+  const [items, setItems] = useState<CartItem[]>([]);
+  const [appliedCouponCode, setAppliedCouponCode] = useState<string>('');
   const [isCartOpen, setIsCartOpen] = useState<boolean>(false);
+
+  // Fetch live pricing config from the API once on mount
+  useEffect(() => {
+    fetchPricingConfig().then(setPricingConfig).catch(() => {/* keep default */});
+  }, []);
+
+  // Fetch cart items when user auth state changes
+  useEffect(() => {
+    if (isAuthenticated) {
+      apiFetch<CartItem[]>('/cart/')
+        .then(setItems)
+        .catch(err => console.error("Failed to load cart:", err));
+    } else {
+      setItems([]);
+      setAppliedCouponCode('');
+    }
+  }, [isAuthenticated]);
 
   const cartCount = useMemo(() => items.reduce((acc, item) => acc + item.quantity, 0), [items]);
   
@@ -98,21 +71,16 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
   const cartTotal = cartTotals.subtotal;
 
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-
-    try {
-      const stateToStore: StoredCartState = { items, appliedCouponCode };
-      window.localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(stateToStore));
-    } catch {
-      // Ignore storage write errors so cart behavior still works in memory.
-    }
-  }, [items, appliedCouponCode]);
-
   const isSameItem = (a: CartItem, b: CartItem) => 
     a.productId === b.productId && a.size === b.size && a.color === b.color;
 
-  const addToCart = (newItem: CartItem) => {
+  const addToCart = async (newItem: CartItem) => {
+    if (!isAuthenticated) {
+      alert("Please log in to add items to your cart.");
+      return;
+    }
+    
+    // Optimistic UI update
     setItems((prevItems) => {
       const existingItemIndex = prevItems.findIndex(item => isSameItem(item, newItem));
       if (existingItemIndex >= 0) {
@@ -122,16 +90,46 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       }
       return [...prevItems, newItem];
     });
-    setIsCartOpen(true); // Open drawer on add
+    setIsCartOpen(true);
+
+    try {
+      await apiFetch('/cart/', {
+        method: 'POST',
+        body: JSON.stringify({
+          productId: newItem.productId,
+          size: newItem.size || '',
+          color: newItem.color || '',
+          quantity: newItem.quantity
+        })
+      });
+    } catch (err) {
+      console.error("Failed to add to cart:", err);
+      // Re-fetch to sync with server
+      apiFetch<CartItem[]>('/cart/').then(setItems);
+    }
   };
 
-  const removeFromCart = (productId: number, size?: string, color?: string) => {
+  const removeFromCart = async (productId: number, size?: string, color?: string) => {
+    if (!isAuthenticated) return;
+
     setItems((prevItems) => prevItems.filter(item => 
       !(item.productId === productId && item.size === size && item.color === color)
     ));
+
+    try {
+      await apiFetch('/cart/', {
+        method: 'DELETE',
+        body: JSON.stringify({ productId, size: size || '', color: color || '' })
+      });
+    } catch (err) {
+      console.error("Failed to remove from cart:", err);
+      apiFetch<CartItem[]>('/cart/').then(setItems);
+    }
   };
 
-  const updateQuantity = (productId: number, size: string | undefined, color: string | undefined, quantity: number) => {
+  const updateQuantity = async (productId: number, size: string | undefined, color: string | undefined, quantity: number) => {
+    if (!isAuthenticated) return;
+
     if (quantity < 1) {
       removeFromCart(productId, size, color);
       return;
@@ -141,6 +139,16 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         ? { ...item, quantity }
         : item
     ));
+
+    try {
+      await apiFetch('/cart/', {
+        method: 'PUT',
+        body: JSON.stringify({ productId, size: size || '', color: color || '', quantity })
+      });
+    } catch (err) {
+      console.error("Failed to update cart quantity:", err);
+      apiFetch<CartItem[]>('/cart/').then(setItems);
+    }
   };
 
   const applyCoupon = (couponCode: string): CouponApplyResult => {
@@ -160,9 +168,16 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
   const openCart = () => setIsCartOpen(true);
   const closeCart = () => setIsCartOpen(false);
-  const clearCart = () => {
+  const clearCart = async () => {
     setItems([]);
     setAppliedCouponCode('');
+    if (isAuthenticated) {
+      try {
+        await apiFetch('/cart/', { method: 'DELETE', body: JSON.stringify({}) });
+      } catch (err) {
+        console.error("Failed to clear cart:", err);
+      }
+    }
   };
 
   return (

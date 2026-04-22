@@ -26,24 +26,22 @@ export type CreateOrderParams = {
   totals: CartTotals;
 };
 
-export const createOrder = async (params: CreateOrderParams): Promise<Order> => {
-  await delay(MOCK_API_DELAY_MS);
+import { apiFetch } from './api';
 
-  const order: Order = {
-    id: generateOrderId(),
-    items: params.items,
+export const createOrder = async (params: CreateOrderParams): Promise<Order> => {
+  // Pass shippingAddress and paymentMethod; the backend handles items via the cart.
+  const payload = {
     shippingAddress: params.shippingAddress,
     paymentMethod: params.paymentMethod,
     subtotal: params.totals.subtotal,
     discount: params.totals.discount,
     shipping: params.totals.shipping,
     total: params.totals.total,
-    status: 'confirmed',
-    createdAt: new Date().toISOString(),
-    estimatedDelivery: calculateEstimatedDelivery(),
   };
-
-  return order;
+  return await apiFetch<Order>('/orders/', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
 };
 
 export const formatEstimatedDelivery = (isoDate: string): string => {

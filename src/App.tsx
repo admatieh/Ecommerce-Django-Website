@@ -8,9 +8,15 @@ import SearchPage from './pages/SearchPage'
 import AboutPage from './pages/AboutPage'
 import ContactPage from './pages/ContactPage'
 import { CartProvider } from './context/CartContext'
+import { AuthProvider } from './context/AuthContext'
 import CartDrawer from './components/CartDrawer'
 import PageTransition from './components/PageTransition'
 import Layout from './components/Layout'
+import ProtectedRoute from './components/ProtectedRoute'
+import LoginPage from './pages/LoginPage'
+import RegisterPage from './pages/RegisterPage'
+import VerifyEmailPage from './pages/VerifyEmailPage'
+import AccountPage from './pages/AccountPage'
 
 function AnimatedRoutes() {
   const location = useLocation();
@@ -49,6 +55,17 @@ function AnimatedRoutes() {
           <Route path="/search" element={<SearchPage />} />
           <Route path="/about" element={<AboutPage />} />
           <Route path="/contact" element={<ContactPage />} />
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/register" element={<RegisterPage />} />
+          <Route path="/verify-email" element={<VerifyEmailPage />} />
+          <Route 
+            path="/account" 
+            element={
+              <ProtectedRoute>
+                <AccountPage />
+              </ProtectedRoute>
+            } 
+          />
         </Routes>
       </PageTransition>
     </Layout>
@@ -57,14 +74,16 @@ function AnimatedRoutes() {
 
 function App() {
   return (
-    <CartProvider>
-      <BrowserRouter>
-        <div className="min-h-screen bg-background text-textMain overflow-x-hidden flex flex-col">
-          <AnimatedRoutes />
-          <CartDrawer />
-        </div>
-      </BrowserRouter>
-    </CartProvider>
+    <AuthProvider>
+      <CartProvider>
+        <BrowserRouter>
+          <div className="min-h-screen bg-background text-textMain overflow-x-hidden flex flex-col">
+            <AnimatedRoutes />
+            <CartDrawer />
+          </div>
+        </BrowserRouter>
+      </CartProvider>
+    </AuthProvider>
   )
 }
 

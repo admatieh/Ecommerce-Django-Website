@@ -1,5 +1,6 @@
 import { CartItem, CartTotals, Discount, ShippingRule } from '../types/product';
-import { discounts, shippingRules } from '../data/mockData';
+import { apiFetch } from './api';
+import { toNumber } from '../utils/format';
 
 /**
  * Central Pricing Engine
@@ -19,8 +20,72 @@ export type PricingConfig = {
   shippingRules: ShippingRule[];
 };
 
-export const getPricingConfig = (): PricingConfig => {
-  return { discounts, shippingRules };
+// Default config used for the initial synchronous render before API responds
+const DEFAULT_CONFIG: PricingConfig = { discounts: [], shippingRules: [] };
+
+/**
+ * Synchronous getter – returns the last fetched config or the default.
+ * CartContext calls this synchronously inside useMemo for the initial render;
+ * it then re-fetches via fetchPricingConfig() in a useEffect.
+ */
+let _cachedConfig: PricingConfig = DEFAULT_CONFIG;
+
+export const getPricingConfig = (): PricingConfig => _cachedConfig;
+
+// ---------------------------------------------------------------------------
+// Normalisation — coerce Django DecimalField strings → JS numbers
+// ---------------------------------------------------------------------------
+
+/**
+ * Normalises a raw ShippingRule from the API.
+ * `cost` and `minOrderAmount` come as strings ("12.00") from Django's
+ * DecimalField serialiser. This converts them to proper JS numbers so the
+ * arithmetic in calculateShippingCost never operates on strings.
+ */
+function normaliseShippingRule(raw: ShippingRule): ShippingRule {
+  return {
+    ...raw,
+    cost: toNumber(raw.cost),
+    minOrderAmount: toNumber(raw.minOrderAmount),
+  };
+}
+
+/**
+ * Normalises a raw Discount from the API.
+ * `value` and `minOrderAmount` may arrive as strings.
+ */
+function normaliseDiscount(raw: Discount): Discount {
+  return {
+    ...raw,
+    value: toNumber(raw.value),
+    minOrderAmount: raw.minOrderAmount !== undefined ? toNumber(raw.minOrderAmount) : undefined,
+  };
+}
+
+/**
+ * Normalises the full pricing config envelope returned by /api/pricing/.
+ * Call this once when the API response arrives — never again.
+ */
+function normalisePricingConfig(raw: PricingConfig): PricingConfig {
+  return {
+    discounts: raw.discounts.map(normaliseDiscount),
+    shippingRules: raw.shippingRules.map(normaliseShippingRule),
+  };
+}
+
+/**
+ * Async loader – fetches discounts + shipping rules from the API,
+ * normalises all numeric fields, then updates the cache.
+ */
+export const fetchPricingConfig = async (): Promise<PricingConfig> => {
+  try {
+    const raw = await apiFetch<PricingConfig>('/pricing/');
+    _cachedConfig = normalisePricingConfig(raw);
+    return _cachedConfig;
+  } catch {
+    // API unavailable – keep whatever we have (default or previous fetch)
+    return _cachedConfig;
+  }
 };
 
 const normalizeCouponCode = (code: string): string => code.trim().toUpperCase();
@@ -69,9 +134,9 @@ export const getApplicableDiscount = (
  */
 export const getFreeShippingThreshold = (shippingRules: ShippingRule[]): number => {
   const freeRules = shippingRules
-    .filter((rule) => rule.isActive && rule.cost === 0 && rule.minOrderAmount > 0)
-    .sort((a, b) => a.minOrderAmount - b.minOrderAmount);
-  return freeRules.length > 0 ? freeRules[0].minOrderAmount : 0;
+    .filter((rule) => rule.isActive && toNumber(rule.cost) === 0 && toNumber(rule.minOrderAmount) > 0)
+    .sort((a, b) => toNumber(a.minOrderAmount) - toNumber(b.minOrderAmount));
+  return freeRules.length > 0 ? toNumber(freeRules[0].minOrderAmount) : 0;
 };
 
 /**
@@ -81,10 +146,11 @@ export const calculateShippingCost = (
   discountedSubtotal: number,
   shippingRules: ShippingRule[]
 ): number => {
+  const subtotal = toNumber(discountedSubtotal);
   const matchingRule = shippingRules
-    .filter((rule) => rule.isActive && discountedSubtotal >= rule.minOrderAmount)
-    .sort((a, b) => b.minOrderAmount - a.minOrderAmount)[0];
-  return matchingRule ? matchingRule.cost : 0;
+    .filter((rule) => rule.isActive && subtotal >= toNumber(rule.minOrderAmount))
+    .sort((a, b) => toNumber(b.minOrderAmount) - toNumber(a.minOrderAmount))[0];
+  return matchingRule ? toNumber(matchingRule.cost) : 0;
 };
 
 /**

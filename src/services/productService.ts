@@ -1,137 +1,162 @@
-import { products, categories } from '../data/mockData';
+/**
+ * src/services/productService.ts
+ *
+ * Fetches product data from the Django REST API.
+ * All functions match the original mock signatures exactly — no
+ * call-site changes needed in pages or components.
+ *
+ * API endpoints consumed:
+ *   GET /api/products/                       – list (with filters)
+ *   GET /api/products/<id>/                  – detail
+ *   GET /api/products/<id>/related/?limit=4  – related
+ */
+
 import { Product, Category, ProductFilters, SortOption } from '../types/product';
+import { apiFetch } from './api';
+import { getCategoryById } from './categoryService';
 
-const MOCK_API_DELAY_MS = 80;
+// ---------------------------------------------------------------------------
+// Internal helpers
+// ---------------------------------------------------------------------------
 
-const delay = (ms: number): Promise<void> =>
-  new Promise((resolve) => {
-    window.setTimeout(resolve, ms);
-  });
+const SORT_PARAM: Record<NonNullable<SortOption>, string> = {
+  'price-asc': 'price_asc',
+  'price-desc': 'price_desc',
+  'newest': 'newest',
+  '': '',
+};
 
-const maybeThrowSimulatedError = (): void => {
-  if (typeof window !== 'undefined' && window.localStorage.getItem('velora:simulateApiError') === '1') {
-    throw new Error('Simulated API failure');
+// ---------------------------------------------------------------------------
+// Public API
+// ---------------------------------------------------------------------------
+
+/** Fetch all active products */
+export const getProducts = async (): Promise<Product[]> => {
+  return apiFetch<Product[]>('/products/');
+};
+
+/** Fetch a single product by ID. Returns null if not found. */
+export const getProductById = async (id: number): Promise<Product | null> => {
+  try {
+    return await apiFetch<Product>(`/products/${id}/`);
+  } catch {
+    return null;
   }
 };
 
-export const getProducts = async (): Promise<Product[]> => {
-  await delay(MOCK_API_DELAY_MS);
-  maybeThrowSimulatedError();
-  return products.filter((p) => p.isActive);
-};
-
-export const getProductById = async (id: number): Promise<Product | null> => {
-  await delay(MOCK_API_DELAY_MS);
-  maybeThrowSimulatedError();
-  return products.find((product) => product.id === id && product.isActive) ?? null;
-};
-
+/** Fetch multiple products by their IDs (preserves order) */
 export const getProductsByIds = async (productIds: number[]): Promise<Product[]> => {
-  await delay(MOCK_API_DELAY_MS);
-  maybeThrowSimulatedError();
+  if (productIds.length === 0) return [];
+
+  // Fetch all concurrently and filter out nulls
+  const results = await Promise.all(productIds.map((id) => getProductById(id)));
+  // Preserve the original order
   return productIds
-    .map((id) => products.find((product) => product.id === id && product.isActive))
-    .filter((product): product is Product => Boolean(product));
+    .map((id) => results.find((p) => p?.id === id))
+    .filter((p): p is Product => Boolean(p));
 };
 
+/** Fetch products in a given category by category ID */
 export const getProductsByCategory = async (categoryId: number): Promise<Product[]> => {
-  await delay(MOCK_API_DELAY_MS);
-  maybeThrowSimulatedError();
-  return products.filter((product) => product.categoryId === categoryId && product.isActive);
+  // We filter by category slug on the backend, so first resolve the ID → slug
+  // The simpler path: use the category endpoint to find the slug
+  return apiFetch<Product[]>(`/products/?category_id=${categoryId}`);
 };
 
+/** Fetch up to `limit` related products for a given product */
 export const getRelatedProducts = async (
   productId: number,
-  limit: number = 4
+  limit = 4
 ): Promise<Product[]> => {
-  await delay(MOCK_API_DELAY_MS);
-  maybeThrowSimulatedError();
-  const product = products.find((p) => p.id === productId);
-  if (!product) return [];
-
-  const sameCategory = products.filter(
-    (item) => item.id !== productId && item.categoryId === product.categoryId && item.isActive
-  );
-  const otherProducts = products.filter(
-    (item) => item.id !== productId && item.categoryId !== product.categoryId && item.isActive
-  );
-
-  return [...sameCategory, ...otherProducts].slice(0, limit);
+  try {
+    return await apiFetch<Product[]>(`/products/${productId}/related/?limit=${limit}`);
+  } catch {
+    return [];
+  }
 };
 
+/** Fetch products marked as featured */
 export const getFeaturedProducts = async (): Promise<Product[]> => {
-  await delay(MOCK_API_DELAY_MS);
-  maybeThrowSimulatedError();
-  return products.filter((product) => product.isFeatured && product.isActive);
+  return apiFetch<Product[]>('/products/?isFeatured=true');
 };
 
+/** Search products by text query */
 export const searchProducts = async (query: string): Promise<Product[]> => {
-  await delay(MOCK_API_DELAY_MS);
-  maybeThrowSimulatedError();
-  const normalizedQuery = query.toLowerCase().trim();
-  if (!normalizedQuery) return products.filter((p) => p.isActive);
-
-  return products.filter((product) => {
-    if (!product.isActive) return false;
-    const nameMatch = product.name.toLowerCase().includes(normalizedQuery);
-    const descMatch = product.description.toLowerCase().includes(normalizedQuery);
-    const categoryName = categories.find((c) => c.id === product.categoryId)?.name ?? '';
-    const categoryMatch = categoryName.toLowerCase().includes(normalizedQuery);
-    return nameMatch || descMatch || categoryMatch;
-  });
+  if (!query.trim()) return getProducts();
+  return apiFetch<Product[]>(`/products/?search=${encodeURIComponent(query)}`);
 };
 
+/** Fetch products with full filter + sort support */
 export const getFilteredProducts = async (
   filters: ProductFilters,
   sort: SortOption
 ): Promise<Product[]> => {
-  await delay(MOCK_API_DELAY_MS);
-  maybeThrowSimulatedError();
+  const params = new URLSearchParams();
 
-  let result = products.filter((product) => product.isActive);
-
-  // Search filter
   if (filters.search.trim()) {
-    const lowerQuery = filters.search.toLowerCase();
-    result = result.filter((p) => {
-      const nameMatch = p.name.toLowerCase().includes(lowerQuery);
-      const categoryName = categories.find((c) => c.id === p.categoryId)?.name ?? '';
-      const categoryMatch = categoryName.toLowerCase().includes(lowerQuery);
-      return nameMatch || categoryMatch;
-    });
+    params.set('search', filters.search.trim());
   }
 
-  // Category filter
+  // The backend accepts category by slug; the filter sends category names,
+  // but since our slugs == lowercased names we can convert safely.
   if (filters.categories.length > 0) {
-    const selectedCategoryIds = categories
-      .filter((category) => filters.categories.includes(category.name))
-      .map((category) => category.id);
-    result = result.filter((product) => selectedCategoryIds.includes(product.categoryId));
+    // Send the first selected category slug (backend filter is single-value)
+    params.set('category', filters.categories[0].toLowerCase());
   }
 
-  // Price filter
+  if (filters.priceRange) {
+    // Price range filtering is not yet on the API; handled client-side below
+  }
+
+  if (filters.inStock) {
+    params.set('inStock', 'true');
+  }
+
+  const sortKey = sort as keyof typeof SORT_PARAM;
+  if (sort && SORT_PARAM[sortKey]) {
+    params.set('sort', SORT_PARAM[sortKey]);
+  }
+
+  const qs = params.toString();
+  let products = await apiFetch<Product[]>(`/products/${qs ? `?${qs}` : ''}`);
+
+  // Client-side price range filter (not yet a backend param)
   if (filters.priceRange) {
     const [min, max] = filters.priceRange;
-    result = result.filter((p) => p.price >= min && p.price <= max);
+    products = products.filter((p) => p.price >= min && p.price <= max);
   }
 
-  // Stock filter
-  if (filters.inStock) {
-    result = result.filter((p) => p.stock > 0);
+  // Multi-category client-side filter if more than one category selected
+  if (filters.categories.length > 1) {
+    // Already sent the first category to the API; now expand to remaining
+    const allCategoryProducts = await Promise.all(
+      filters.categories.slice(1).map((name) =>
+        apiFetch<Product[]>(`/products/?category=${encodeURIComponent(name.toLowerCase())}`)
+      )
+    );
+    const extra = allCategoryProducts.flat();
+    const seen = new Set(products.map((p) => p.id));
+    for (const p of extra) {
+      if (!seen.has(p.id)) {
+        products.push(p);
+        seen.add(p.id);
+      }
+    }
   }
 
-  // Sorting
-  if (sort === 'price-asc') {
-    result.sort((a, b) => a.price - b.price);
-  } else if (sort === 'price-desc') {
-    result.sort((a, b) => b.price - a.price);
-  } else if (sort === 'newest') {
-    result.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-  }
-
-  return result;
+  return products;
 };
 
-export const getCategoryForProduct = (product: Product): Category | undefined => {
-  return categories.find((c) => c.id === product.categoryId);
-};
+/**
+ * Synchronous category lookup for a product.
+ *
+ * Reads from the module-level category cache in categoryService.
+ * No second argument needed — the cache is populated by any page that
+ * calls getCategories() before rendering ProductCard (LandingPage,
+ * CollectionsPage, ProductPage all do this).
+ *
+ * Returns null if the category is not found so callers can guard with
+ * a simple `if (category)` check.
+ */
+export const getCategoryForProduct = (product: Product): Category | null =>
+  getCategoryById(product.categoryId);
