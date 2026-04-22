@@ -8,18 +8,27 @@ const delay = (ms: number): Promise<void> =>
     window.setTimeout(resolve, ms);
   });
 
+const maybeThrowSimulatedError = (): void => {
+  if (typeof window !== 'undefined' && window.localStorage.getItem('velora:simulateApiError') === '1') {
+    throw new Error('Simulated API failure');
+  }
+};
+
 export const getProducts = async (): Promise<Product[]> => {
   await delay(MOCK_API_DELAY_MS);
+  maybeThrowSimulatedError();
   return products.filter((p) => p.isActive);
 };
 
 export const getProductById = async (id: number): Promise<Product | null> => {
   await delay(MOCK_API_DELAY_MS);
+  maybeThrowSimulatedError();
   return products.find((product) => product.id === id && product.isActive) ?? null;
 };
 
 export const getProductsByIds = async (productIds: number[]): Promise<Product[]> => {
   await delay(MOCK_API_DELAY_MS);
+  maybeThrowSimulatedError();
   return productIds
     .map((id) => products.find((product) => product.id === id && product.isActive))
     .filter((product): product is Product => Boolean(product));
@@ -27,6 +36,7 @@ export const getProductsByIds = async (productIds: number[]): Promise<Product[]>
 
 export const getProductsByCategory = async (categoryId: number): Promise<Product[]> => {
   await delay(MOCK_API_DELAY_MS);
+  maybeThrowSimulatedError();
   return products.filter((product) => product.categoryId === categoryId && product.isActive);
 };
 
@@ -35,6 +45,7 @@ export const getRelatedProducts = async (
   limit: number = 4
 ): Promise<Product[]> => {
   await delay(MOCK_API_DELAY_MS);
+  maybeThrowSimulatedError();
   const product = products.find((p) => p.id === productId);
   if (!product) return [];
 
@@ -50,11 +61,13 @@ export const getRelatedProducts = async (
 
 export const getFeaturedProducts = async (): Promise<Product[]> => {
   await delay(MOCK_API_DELAY_MS);
+  maybeThrowSimulatedError();
   return products.filter((product) => product.isFeatured && product.isActive);
 };
 
 export const searchProducts = async (query: string): Promise<Product[]> => {
   await delay(MOCK_API_DELAY_MS);
+  maybeThrowSimulatedError();
   const normalizedQuery = query.toLowerCase().trim();
   if (!normalizedQuery) return products.filter((p) => p.isActive);
 
@@ -73,6 +86,7 @@ export const getFilteredProducts = async (
   sort: SortOption
 ): Promise<Product[]> => {
   await delay(MOCK_API_DELAY_MS);
+  maybeThrowSimulatedError();
 
   let result = products.filter((product) => product.isActive);
 

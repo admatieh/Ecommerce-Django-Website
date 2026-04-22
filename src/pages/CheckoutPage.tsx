@@ -110,6 +110,7 @@ export default function CheckoutPage() {
   const [couponFeedback, setCouponFeedback] = useState<string>('');
   const [couponApplied, setCouponApplied] = useState<boolean>(false);
   const [totalsPulse, setTotalsPulse] = useState<boolean>(false);
+  const [submitError, setSubmitError] = useState<string>('');
   const lastTotalRef = useRef<number>(cartTotals.total);
 
   const finalTotal = cartTotals.total;
@@ -169,6 +170,7 @@ export default function CheckoutPage() {
     if (Object.keys(formErrors).length > 0 || items.length === 0 || form.paymentMethod !== 'cod') return;
 
     setIsSubmitting(true);
+    setSubmitError('');
 
     try {
       const shippingAddress: ShippingAddress = {
@@ -203,6 +205,7 @@ export default function CheckoutPage() {
         state: { order } as CheckoutSuccessState,
       });
     } catch {
+      setSubmitError('We could not place your order right now. Please try again.');
       setIsSubmitting(false);
     }
   };
@@ -516,11 +519,13 @@ export default function CheckoutPage() {
                     Apply
                   </button>
                 </div>
-                {couponFeedback && (
-                  <p className={`mt-2 text-xs transition-all duration-300 ${couponApplied ? 'text-brand' : 'text-red-500'}`} role="status">
-                    {couponFeedback}
-                  </p>
-                )}
+                <div className="mt-2 min-h-[18px]">
+                  {couponFeedback && (
+                    <p className={`text-xs transition-all duration-300 ${couponApplied ? 'text-brand' : 'text-red-500'}`} role="status">
+                      {couponFeedback}
+                    </p>
+                  )}
+                </div>
                 {appliedCouponCode && (
                   <button
                     onClick={handleClearCoupon}
@@ -582,15 +587,17 @@ export default function CheckoutPage() {
                 <div className="flex justify-between items-center pt-4 border-t border-black/5">
                   <span className="text-base font-semibold uppercase tracking-widest text-textMain">Total</span>
                   <span
-                    className={`text-2xl font-serif text-textMain transition-all duration-300 ${totalsPulse ? 'scale-105 opacity-90' : 'scale-100 opacity-100'}`}
+                    className={`text-2xl font-serif text-textMain tabular-nums transition-all duration-300 ${totalsPulse ? 'scale-105 opacity-90' : 'scale-100 opacity-100'}`}
                   >
                     ${finalTotal.toFixed(2)}
                   </span>
                 </div>
               </div>
-              {cartTotals.discount > 0 && (
-                <p className="text-xs text-brand mb-6">You are saving ${cartTotals.discount.toFixed(2)} on this order.</p>
-              )}
+              <div className="min-h-[20px] mb-6">
+                {cartTotals.discount > 0 && (
+                  <p className="text-xs text-brand">You are saving ${cartTotals.discount.toFixed(2)} on this order.</p>
+                )}
+              </div>
 
               <Button
                 onClick={handlePlaceOrder}
@@ -612,6 +619,11 @@ export default function CheckoutPage() {
               {!isFormValid && form.paymentMethod === 'cod' && items.length > 0 && (
                 <p className="text-center text-[11px] text-textLight mt-4 uppercase tracking-widest">
                   Please complete shipping details
+                </p>
+              )}
+              {submitError && (
+                <p className="text-center text-xs text-red-500 mt-3" role="status">
+                  {submitError}
                 </p>
               )}
             </div>

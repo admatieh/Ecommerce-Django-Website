@@ -1,3 +1,4 @@
+import { useRef } from 'react';
 import { ArrowRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import Button from '../../components/Button';
@@ -10,19 +11,45 @@ type HeroProps = {
 };
 
 export default function Hero({ data, products }: HeroProps) {
+  const imageWrapRef = useRef<HTMLDivElement | null>(null);
+
+  const handleImageMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    const el = imageWrapRef.current;
+    if (!el) return;
+
+    const rect = el.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    const rotateY = ((x / rect.width) - 0.5) * 3;
+    const rotateX = (0.5 - y / rect.height) * 2;
+
+    el.style.transform = `perspective(1000px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) translateY(-2px)`;
+  };
+
+  const handleImageLeave = () => {
+    if (!imageWrapRef.current) return;
+    imageWrapRef.current.style.transform = 'perspective(1000px) rotateX(0deg) rotateY(0deg) translateY(0)';
+  };
+
   return (
     <section className="relative min-h-screen pt-24 pb-12 lg:pt-32 px-6 overflow-hidden flex flex-col justify-center">
       {/* Background large text */}
       <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 flex justify-center pointer-events-none z-0 overflow-hidden">
         <h1 className="text-[10rem] md:text-[18rem] lg:text-[26rem] font-bold text-white/60 tracking-tighter mix-blend-overlay select-none whitespace-nowrap">
-          FASHION
+          {data.backgroundWord}
         </h1>
       </div>
 
       <div className="max-w-7xl mx-auto w-full relative z-10 grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
         {/* Left / Center Image Area */}
         <div className="relative order-2 lg:order-1 flex justify-center mt-12 lg:mt-0">
-          <div className="relative w-full max-w-md opacity-0 animate-fade-in-up" style={{ animationDelay: '200ms' }}>
+          <div
+            ref={imageWrapRef}
+            className="relative w-full max-w-md opacity-0 animate-fade-in-up transition-transform duration-300"
+            style={{ animationDelay: '200ms', transformStyle: 'preserve-3d', willChange: 'transform' }}
+            onMouseMove={handleImageMove}
+            onMouseLeave={handleImageLeave}
+          >
             <img
               src={data.backgroundImage}
               alt="Fashion model wearing a beige ensemble"
@@ -32,7 +59,9 @@ export default function Hero({ data, products }: HeroProps) {
             {/* Floating tags */}
             {data.tags.map((tag, index) => {
               const product = products.find((item) => item.id === tag.productId);
-              const tagPrice = product ? product.discountPrice ?? product.price : undefined;
+              if (!product) return null;
+
+              const tagPrice = product.discountPrice ?? product.price;
 
               return (
                 <div
@@ -46,15 +75,15 @@ export default function Hero({ data, products }: HeroProps) {
                   }}
                 >
                   <div>
-                    <p className="text-sm font-semibold text-textMain">{product?.name ?? 'Featured Product'}</p>
+                    <p className="text-sm font-semibold text-textMain">{product.name}</p>
                     <p className="text-xs text-textMain/70">
-                      {typeof tagPrice === 'number' ? `$${tagPrice.toFixed(2)}` : 'View details'}
+                      ${tagPrice.toFixed(2)}
                     </p>
                   </div>
                   <Link
-                    to={product ? `/product/${product.id}` : data.ctaLink}
+                    to={`/product/${product.id}`}
                     className="bg-brand text-white p-2 rounded-lg cursor-pointer hover:bg-brand/80 transition-all duration-200 active:scale-90 shrink-0"
-                    aria-label={product ? `View ${product.name}` : 'View featured product'}
+                    aria-label={`View ${product.name}`}
                   >
                     <ArrowRight size={14} />
                   </Link>

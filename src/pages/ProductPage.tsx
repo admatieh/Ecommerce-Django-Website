@@ -3,7 +3,6 @@ import { Heart, Minus, Plus, ShoppingBag, ChevronLeft, ChevronRight } from 'luci
 import { Link, useParams } from 'react-router-dom';
 import Button from '../components/Button';
 import ProductCard from '../components/ProductCard';
-import Loader from '../components/Loader';
 import { useCart } from '../context/CartContext';
 import { getProductById, getRelatedProducts, getCategoryForProduct } from '../services/productService';
 import { Product, Category } from '../types/product';
@@ -158,6 +157,7 @@ export default function ProductPage() {
   const [category, setCategory] = useState<Category | undefined>(undefined);
   const [relatedProducts, setRelatedProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState<string>('');
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
   const [selectedColor, setSelectedColor] = useState<string | null>(null);
   const [quantity, setQuantity] = useState<number>(1);
@@ -174,6 +174,7 @@ export default function ProductPage() {
 
     const loadProduct = async () => {
       setIsLoading(true);
+      setErrorMessage('');
       try {
         const [fetchedProduct, fetchedRelated] = await Promise.all([
           getProductById(productId),
@@ -189,6 +190,11 @@ export default function ProductPage() {
           setCategory(getCategoryForProduct(fetchedProduct));
           setSelectedSize(fetchedProduct.sizes?.[0] || null);
           setSelectedColor(fetchedProduct.colors?.[0] || null);
+        }
+      } catch {
+        if (isMounted) {
+          setErrorMessage('We could not load this product right now. Please retry.');
+          setProduct(null);
         }
       } finally {
         if (isMounted) {
@@ -209,6 +215,23 @@ export default function ProductPage() {
 
   if (isLoading) {
     return <ProductSkeleton />;
+  }
+
+  if (errorMessage) {
+    return (
+      <div className="min-h-screen bg-background pt-32 pb-24 px-6 flex items-center justify-center animate-fade-in-up">
+        <div className="text-center max-w-md">
+          <h1 className="text-3xl font-serif text-textMain mb-4">Unable to Load Product</h1>
+          <p className="text-textLight mb-8">{errorMessage}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="inline-flex items-center justify-center px-8 py-3.5 rounded-full bg-textMain text-white text-xs font-semibold uppercase tracking-widest hover:bg-black/80 transition-all duration-200 active:scale-[0.98]"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
   }
 
   if (!product) {
@@ -308,7 +331,9 @@ export default function ProductPage() {
             {needsColor && (
               <div className="mb-6">
                 <div className="flex items-center justify-between mb-3">
-                  <p className="text-xs uppercase tracking-[0.2em] font-semibold text-textMain">Color</p>
+                  <p className="text-xs uppercase tracking-[0.2em] font-semibold text-textMain">
+                    Color <span className="text-brand">*</span>
+                  </p>
                   <p className="text-xs text-textLight">{selectedColor}</p>
                 </div>
                 <div className="flex flex-wrap gap-2">
@@ -331,7 +356,9 @@ export default function ProductPage() {
 
             {needsSize && (
               <div className="mb-6">
-                <p className="text-xs uppercase tracking-[0.2em] font-semibold text-textMain mb-3">Size</p>
+                <p className="text-xs uppercase tracking-[0.2em] font-semibold text-textMain mb-3">
+                  Size <span className="text-brand">*</span>
+                </p>
                 <div className="flex flex-wrap gap-2">
                   {product.sizes?.map((size) => (
                     <button
@@ -374,7 +401,7 @@ export default function ProductPage() {
               )}
             </div>
 
-            <div className="hidden md:flex gap-3">
+            <div className="hidden md:flex md:sticky md:top-[calc(100vh-11rem)] gap-3 bg-background/95 backdrop-blur-sm border border-black/5 rounded-2xl p-3">
               <Button
                 onClick={handleAddToCart}
                 isLoading={isAdding}
@@ -400,6 +427,11 @@ export default function ProductPage() {
                 Wishlist
               </button>
             </div>
+            {!canAddToCart && (needsSize || needsColor) && (
+              <p className="hidden md:block text-xs text-textLight mt-3">
+                Select {needsColor ? 'a color' : ''}{needsColor && needsSize ? ' and ' : ''}{needsSize ? 'a size' : ''} to continue.
+              </p>
+            )}
           </div>
         </div>
 

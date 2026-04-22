@@ -29,6 +29,7 @@ export default function SearchPage() {
   const [debouncedQuery, setDebouncedQuery] = useState<string>(initialQuery);
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [errorMessage, setErrorMessage] = useState<string>('');
 
   // Debounce search input
   useEffect(() => {
@@ -57,9 +58,12 @@ export default function SearchPage() {
   // Fetch products
   const fetchProducts = useCallback(async (query: string) => {
     setIsLoading(true);
+    setErrorMessage('');
     try {
       const results = await searchProducts(query);
       setProducts(results);
+    } catch {
+      setErrorMessage('Search is temporarily unavailable. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -115,6 +119,19 @@ export default function SearchPage() {
 
         {isLoading ? (
           <ProductGridSkeleton />
+        ) : errorMessage ? (
+          <div className="text-center py-20 sm:py-24 bg-white/60 border border-black/5 rounded-3xl animate-fade-in">
+            <h2 className="text-xl sm:text-2xl font-serif text-textMain mb-3">Search Unavailable</h2>
+            <p className="text-textLight text-sm sm:text-base mb-8 max-w-md mx-auto">
+              {errorMessage}
+            </p>
+            <button
+              onClick={() => fetchProducts(debouncedQuery)}
+              className="inline-flex items-center justify-center px-7 py-3 rounded-full bg-textMain text-white text-xs font-semibold uppercase tracking-widest hover:bg-black/80 transition-all duration-200 active:scale-[0.98]"
+            >
+              Retry Search
+            </button>
+          </div>
         ) : products.length === 0 ? (
           <div className="text-center py-20 sm:py-24 bg-white/60 border border-black/5 rounded-3xl animate-fade-in">
             <div className="w-16 h-16 rounded-full bg-black/[0.03] flex items-center justify-center mx-auto mb-6">

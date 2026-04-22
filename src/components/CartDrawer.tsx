@@ -221,7 +221,13 @@ export default function CartDrawer() {
                           <Minus size={14} />
                         </button>
                         <span className="text-sm font-medium text-textMain w-6 text-center tabular-nums">
+                        <span
+                          className={`inline-block transition-transform duration-200 ${
+                            updatedItemKey === `${item.productId}-${item.size}-${item.color}` ? 'scale-110' : 'scale-100'
+                          }`}
+                        >
                           {item.quantity}
+                        </span>
                         </span>
                         <button
                           onClick={() => handleQuantityChange(item.productId, item.size, item.color, item.quantity + 1)}
@@ -290,14 +296,16 @@ export default function CartDrawer() {
                   Apply
                 </button>
               </div>
-              {couponFeedback && (
-                <p
-                  className={`mt-2 text-xs transition-all duration-300 ${couponApplied ? 'text-brand' : 'text-red-500'}`}
-                  role="status"
-                >
-                  {couponFeedback}
-                </p>
-              )}
+              <div className="mt-2 min-h-[18px]">
+                {couponFeedback && (
+                  <p
+                    className={`text-xs transition-all duration-300 ${couponApplied ? 'text-brand' : 'text-red-500'}`}
+                    role="status"
+                  >
+                    {couponFeedback}
+                  </p>
+                )}
+              </div>
               {appliedCouponCode && (
                 <button
                   onClick={handleClearCoupon}
@@ -330,18 +338,19 @@ export default function CartDrawer() {
               <div className="flex justify-between items-center pt-3 border-t border-black/5">
                 <span className="text-sm font-semibold uppercase tracking-widest text-textMain">Total</span>
                 <span
-                  className={`text-xl font-serif text-textMain transition-all duration-300 ${totalsPulse ? 'scale-105 opacity-90' : 'scale-100 opacity-100'}`}
+                  className={`text-xl font-serif text-textMain tabular-nums transition-all duration-300 ${totalsPulse ? 'scale-105 opacity-90' : 'scale-100 opacity-100'}`}
                 >
                   ${cartTotals.total.toFixed(2)}
                 </span>
               </div>
             </div>
-            {cartTotals.discount > 0 && (
-              <p className="text-xs text-brand mb-5">You are saving ${cartTotals.discount.toFixed(2)} on this order.</p>
-            )}
-            {cartTotals.discount === 0 && (
-              <p className="text-xs text-textLight mb-5">Shipping and taxes calculated at checkout.</p>
-            )}
+            <div className="min-h-[20px] mb-5">
+              {cartTotals.discount > 0 ? (
+                <p className="text-xs text-brand">You are saving ${cartTotals.discount.toFixed(2)} on this order.</p>
+              ) : (
+                <p className="text-xs text-textLight">Shipping and taxes calculated at checkout.</p>
+              )}
+            </div>
             <Button
               onClick={() => {
                 closeCart();

@@ -1,4 +1,5 @@
 import { CartItem, CartTotals, Discount, ShippingRule } from '../types/product';
+import { discounts, shippingRules } from '../data/mockData';
 
 /**
  * Central Pricing Engine
@@ -11,6 +12,15 @@ export type PricingInput = {
   couponCode: string;
   discounts: Discount[];
   shippingRules: ShippingRule[];
+};
+
+export type PricingConfig = {
+  discounts: Discount[];
+  shippingRules: ShippingRule[];
+};
+
+export const getPricingConfig = (): PricingConfig => {
+  return { discounts, shippingRules };
 };
 
 const normalizeCouponCode = (code: string): string => code.trim().toUpperCase();

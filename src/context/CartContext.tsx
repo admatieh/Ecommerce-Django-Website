@@ -1,7 +1,6 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
-import { discounts, shippingRules } from '../data/mockData';
 import { CartItem, CartTotals, Discount } from '../types/product';
-import { calculateCartTotals, validateCoupon } from '../services/pricingService';
+import { calculateCartTotals, getPricingConfig, validateCoupon } from '../services/pricingService';
 
 const CART_STORAGE_KEY = 'velora-cart-state-v2';
 
@@ -79,6 +78,7 @@ const CartContext = createContext<CartContextType | undefined>(undefined);
 
 export function CartProvider({ children }: { children: React.ReactNode }) {
   const storedState = useMemo(() => readStoredCartState(), []);
+  const pricingConfig = useMemo(() => getPricingConfig(), []);
   const [items, setItems] = useState<CartItem[]>(storedState.items);
   const [appliedCouponCode, setAppliedCouponCode] = useState<string>(storedState.appliedCouponCode);
   const [isCartOpen, setIsCartOpen] = useState<boolean>(false);
@@ -90,10 +90,10 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     () => calculateCartTotals({
       items,
       couponCode: appliedCouponCode,
-      discounts,
-      shippingRules,
+      discounts: pricingConfig.discounts,
+      shippingRules: pricingConfig.shippingRules,
     }),
-    [items, appliedCouponCode]
+    [items, appliedCouponCode, pricingConfig]
   );
 
   const cartTotal = cartTotals.subtotal;
@@ -145,7 +145,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
   const applyCoupon = (couponCode: string): CouponApplyResult => {
     const subtotal = items.reduce((acc, item) => acc + item.price * item.quantity, 0);
-    const result = validateCoupon(couponCode, subtotal, discounts);
+    const result = validateCoupon(couponCode, subtotal, pricingConfig.discounts);
     
     if (result.success) {
       setAppliedCouponCode(normalizeCouponCode(couponCode));

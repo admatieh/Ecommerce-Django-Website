@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
 import { ShoppingBag, Search, Menu, X } from 'lucide-react';
 import { NavLink, Link } from 'react-router-dom';
-import { navigationLinks } from '../data/mockData';
 import { useCart } from '../context/CartContext';
+import { getNavigationLinks } from '../services/uiService';
 
 export default function Navbar() {
+  const navigationLinks = getNavigationLinks();
   const [isScrolled, setIsScrolled] = useState<boolean>(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState<boolean>(false);
   const { cartCount, openCart } = useCart();

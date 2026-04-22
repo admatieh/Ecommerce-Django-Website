@@ -19,10 +19,10 @@ export default function FeaturedProducts({ data, products }: FeaturedProductsPro
       <div className="flex justify-between items-end mb-12">
         <h2 className="text-3xl sm:text-4xl font-serif text-textMain">{data.title}</h2>
         <Link
-          to="/collections"
+          to={data.viewAllLink}
           className="hidden md:inline-flex items-center gap-2 text-sm font-medium text-brand hover:opacity-70 transition-opacity duration-200 group"
         >
-          View all pieces
+          {data.viewAllText}
           <ArrowRight size={14} className="transition-transform duration-300 group-hover:translate-x-1" />
         </Link>
       </div>
@@ -35,10 +35,10 @@ export default function FeaturedProducts({ data, products }: FeaturedProductsPro
 
       <div className="mt-10 text-center md:hidden">
         <Link
-          to="/collections"
+          to={data.viewAllLink}
           className="inline-flex items-center gap-2 text-sm font-medium text-brand hover:opacity-70 transition-opacity duration-200 group"
         >
-          View all pieces
+          {data.viewAllText}
           <ArrowRight size={14} className="transition-transform duration-300 group-hover:translate-x-1" />
         </Link>
       </div>

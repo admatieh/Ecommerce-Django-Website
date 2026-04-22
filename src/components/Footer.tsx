@@ -1,7 +1,9 @@
 import { Link } from 'react-router-dom';
-import { footerLinks } from '../data/mockData';
+import { getFooterLinks } from '../services/uiService';
 
 export default function Footer() {
+  const footerLinks = getFooterLinks();
+
   return (
     <footer className="bg-textMain text-white pt-24 pb-12 px-6">
       <div className="max-w-7xl mx-auto grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-12 md:gap-8 mb-16 border-b border-white/10 pb-16">

@@ -40,7 +40,7 @@ export default function FeaturedCategories({ data, categories }: FeaturedCategor
               <div className="absolute bottom-6 left-6 sm:bottom-8 sm:left-8">
                 <h3 className="text-xl sm:text-2xl font-serif text-white mb-2">{category.name}</h3>
                 <span className="text-xs sm:text-sm font-medium text-white/90 uppercase tracking-widest flex items-center gap-2 transition-all duration-300 group-hover:gap-3">
-                  Shop Now
+                  {data.ctaText}
                   <ArrowRight size={14} className="transition-transform duration-300 group-hover:translate-x-1" />
                 </span>
               </div>

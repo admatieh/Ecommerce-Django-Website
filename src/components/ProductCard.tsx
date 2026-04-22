@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Product } from '../types/product';
 import { getCategoryForProduct } from '../services/productService';
@@ -11,6 +11,7 @@ type ProductCardProps = {
 export default function ProductCard({ product }: ProductCardProps) {
   const navigate = useNavigate();
   const category = getCategoryForProduct(product);
+  const cardRef = useRef<HTMLDivElement | null>(null);
 
   const navigateToProduct = useCallback(() => {
     navigate(`/product/${product.id}`);
@@ -21,6 +22,25 @@ export default function ProductCard({ product }: ProductCardProps) {
       e.preventDefault();
       navigateToProduct();
     }
+  };
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    const card = cardRef.current;
+    if (!card) return;
+
+    const rect = card.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    const rotateY = ((x / rect.width) - 0.5) * 4;
+    const rotateX = (0.5 - y / rect.height) * 3;
+
+    card.style.transform = `perspective(1000px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) translateY(-2px)`;
+  };
+
+  const handleMouseLeave = () => {
+    const card = cardRef.current;
+    if (!card) return;
+    card.style.transform = 'perspective(1000px) rotateX(0deg) rotateY(0deg) translateY(0)';
   };
 
   const displayPrice = product.discountPrice ?? product.price;
@@ -61,12 +81,16 @@ export default function ProductCard({ product }: ProductCardProps) {
 
   return (
     <div
+      ref={cardRef}
       className="group cursor-pointer rounded-2xl transition-all duration-300 hover:-translate-y-0.5 hover:scale-[1.01] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background active:scale-[0.99]"
       onClick={navigateToProduct}
       onKeyDown={handleKeyDown}
+      onMouseMove={handleMouseMove}
+      onMouseLeave={handleMouseLeave}
       role="button"
       tabIndex={0}
       aria-label={`View ${product.name}, $${displayPrice.toFixed(2)}`}
+      style={{ transformStyle: 'preserve-3d', willChange: 'transform' }}
     >
       {cardContent}
     </div>

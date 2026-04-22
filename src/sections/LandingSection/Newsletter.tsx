@@ -41,7 +41,7 @@ export default function Newsletter({ data }: NewsletterProps) {
             <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center">
               <Check size={16} strokeWidth={3} />
             </div>
-            <p className="text-lg font-medium">Thank you for subscribing!</p>
+            <p className="text-lg font-medium">{data.successMessage}</p>
           </div>
         ) : (
           <form
@@ -70,7 +70,7 @@ export default function Newsletter({ data }: NewsletterProps) {
                 isSubmitting ? 'opacity-70 cursor-not-allowed' : 'hover:bg-white/90 cursor-pointer'
               }`}
             >
-              {isSubmitting ? 'Sending...' : 'Subscribe'}
+              {isSubmitting ? data.submittingText : data.submitText}
             </button>
           </form>
         )}

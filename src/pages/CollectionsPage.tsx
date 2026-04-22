@@ -44,6 +44,7 @@ export default function CollectionsPage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [errorMessage, setErrorMessage] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [sortOption, setSortOption] = useState<SortOption>('');
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState<boolean>(false);
@@ -86,8 +87,12 @@ export default function CollectionsPage() {
   // Load categories on mount
   useEffect(() => {
     const loadCategories = async () => {
-      const cats = await getCategories();
-      setCategories(cats);
+      try {
+        const cats = await getCategories();
+        setCategories(cats);
+      } catch {
+        setErrorMessage('Unable to load categories right now.');
+      }
     };
     loadCategories();
   }, []);
@@ -108,9 +113,12 @@ export default function CollectionsPage() {
   // Fetch products when filters or sort change
   const fetchProducts = useCallback(async () => {
     setIsLoading(true);
+    setErrorMessage('');
     try {
       const result = await getFilteredProducts(filters, sortOption);
       setProducts(result);
+    } catch {
+      setErrorMessage('Unable to load products right now. Please retry.');
     } finally {
       setIsLoading(false);
     }
@@ -353,6 +361,17 @@ export default function CollectionsPage() {
 
             {isLoading ? (
               <ProductGridSkeleton />
+            ) : errorMessage ? (
+              <div className="text-center py-24 sm:py-32 bg-white/50 rounded-3xl border border-black/5">
+                <p className="text-xl font-serif text-textMain mb-2">Unable to Load Products</p>
+                <p className="text-sm text-textLight mb-6">{errorMessage}</p>
+                <button
+                  onClick={fetchProducts}
+                  className="text-sm font-medium text-brand underline underline-offset-4 hover:opacity-70 transition-opacity"
+                >
+                  Retry
+                </button>
+              </div>
             ) : products.length === 0 ? (
               <div className="text-center py-24 sm:py-32 bg-white/50 rounded-3xl border border-black/5">
                 <div className="w-16 h-16 rounded-full bg-black/[0.03] flex items-center justify-center mx-auto mb-6">

@@ -8,6 +8,7 @@ export type LandingTagPosition = {
 export type HeroSection = {
   title: string;
   subtitle: string;
+  backgroundWord: string;
   backgroundImage: string;
   ctaText: string;
   ctaLink: string;
@@ -21,11 +22,14 @@ export type HeroSection = {
 export type FeaturedCategoriesSection = {
   title: string;
   categoryIds: number[];
+  ctaText: string;
 };
 
 export type FeaturedProductsSection = {
   title: string;
   productIds: number[];
+  viewAllText: string;
+  viewAllLink: string;
 };
 
 export type BannerSection = {
@@ -40,6 +44,9 @@ export type NewsletterSection = {
   title: string;
   subtitle: string;
   placeholder: string;
+  submitText: string;
+  submittingText: string;
+  successMessage: string;
 };
 
 export type LandingPageData = {

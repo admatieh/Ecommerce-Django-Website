@@ -201,6 +201,7 @@ export const landingPageData: LandingPageData = {
   hero: {
     title: 'Clean Lines. Conscious Living.',
     subtitle: 'Timeless essentials for the modern minimalist. Designed to simplify your wardrobe and elevate your everyday.',
+    backgroundWord: 'FASHION',
     backgroundImage: 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?q=80&w=1000&auto=format&fit=crop',
     ctaText: 'Explore the Collection',
     ctaLink: '/collections',
@@ -220,10 +221,13 @@ export const landingPageData: LandingPageData = {
   featuredCategories: {
     title: 'Curated Categories',
     categoryIds: [1, 2, 3, 4],
+    ctaText: 'Shop Now',
   },
   featuredProducts: {
     title: 'Featured Collection',
     productIds: [1, 5, 2, 4],
+    viewAllText: 'View all pieces',
+    viewAllLink: '/collections',
   },
   banner: {
     title: 'Effortless Elegance for the Modern Woman',
@@ -236,5 +240,8 @@ export const landingPageData: LandingPageData = {
     title: 'Join the Community',
     subtitle: 'Subscribe to receive exclusive access to new collections, special offers, and styling tips.',
     placeholder: 'Your email address',
+    submitText: 'Subscribe',
+    submittingText: 'Sending...',
+    successMessage: 'Thank you for subscribing!',
   },
 };
