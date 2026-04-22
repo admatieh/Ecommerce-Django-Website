@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { discounts, shippingRules } from '../data/mockData';
 import { CartItem, CartTotals, Discount } from '../types/product';
+import { calculateCartTotals, validateCoupon } from '../services/pricingService';
 
 const CART_STORAGE_KEY = 'velora-cart-state-v2';
 
@@ -56,34 +57,6 @@ const readStoredCartState = (): StoredCartState => {
   }
 };
 
-const calculateDiscountAmount = (discount: Discount, subtotal: number): number => {
-  if (discount.type === 'percentage') {
-    return (subtotal * discount.value) / 100;
-  }
-  return discount.value;
-};
-
-const getDiscountForSubtotal = (subtotal: number, couponCode: string): Discount | null => {
-  const normalizedCode = normalizeCouponCode(couponCode);
-
-  const eligibleDiscounts = discounts.filter((discount) => {
-    if (!discount.isActive) return false;
-    if ((discount.minOrderAmount ?? 0) > subtotal) return false;
-    if (discount.code) {
-      return normalizeCouponCode(discount.code) === normalizedCode;
-    }
-    return true;
-  });
-
-  if (eligibleDiscounts.length === 0) return null;
-
-  return eligibleDiscounts.reduce((bestDiscount, currentDiscount) => {
-    const bestAmount = calculateDiscountAmount(bestDiscount, subtotal);
-    const currentAmount = calculateDiscountAmount(currentDiscount, subtotal);
-    return currentAmount > bestAmount ? currentDiscount : bestDiscount;
-  });
-};
-
 interface CartContextType {
   items: CartItem[];
   isCartOpen: boolean;
@@ -111,45 +84,16 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const [isCartOpen, setIsCartOpen] = useState<boolean>(false);
 
   const cartCount = useMemo(() => items.reduce((acc, item) => acc + item.quantity, 0), [items]);
-  const subtotal = useMemo(() => items.reduce((acc, item) => acc + item.price * item.quantity, 0), [items]);
-  const activeDiscount = useMemo(
-    () => getDiscountForSubtotal(subtotal, appliedCouponCode),
-    [subtotal, appliedCouponCode],
-  );
-
-  const discountAmount = useMemo(() => {
-    if (!activeDiscount) return 0;
-    return Math.min(subtotal, calculateDiscountAmount(activeDiscount, subtotal));
-  }, [activeDiscount, subtotal]);
-
-  const discountedSubtotal = Math.max(0, subtotal - discountAmount);
-
-  const freeShippingThreshold = useMemo(() => {
-    const freeRules = shippingRules
-      .filter((rule) => rule.isActive && rule.cost === 0 && rule.minOrderAmount > 0)
-      .sort((a, b) => a.minOrderAmount - b.minOrderAmount);
-    return freeRules.length > 0 ? freeRules[0].minOrderAmount : 0;
-  }, []);
-
-  const shippingCost = useMemo(() => {
-    const matchingRule = shippingRules
-      .filter((rule) => rule.isActive && discountedSubtotal >= rule.minOrderAmount)
-      .sort((a, b) => b.minOrderAmount - a.minOrderAmount)[0];
-    return matchingRule ? matchingRule.cost : 0;
-  }, [discountedSubtotal]);
-
-  const cartTotals = useMemo<CartTotals>(
-    () => ({
-      subtotal,
-      discount: discountAmount,
-      shipping: items.length === 0 ? 0 : shippingCost,
-      total: items.length === 0 ? 0 : discountedSubtotal + shippingCost,
-      freeShippingThreshold,
-      amountToFreeShipping:
-        freeShippingThreshold > 0 ? Math.max(0, freeShippingThreshold - discountedSubtotal) : 0,
-      hasFreeShipping: items.length > 0 && shippingCost === 0,
+  
+  // Use central pricing engine for all calculations
+  const { totals: cartTotals, activeDiscount } = useMemo(
+    () => calculateCartTotals({
+      items,
+      couponCode: appliedCouponCode,
+      discounts,
+      shippingRules,
     }),
-    [subtotal, discountAmount, items.length, shippingCost, discountedSubtotal, freeShippingThreshold],
+    [items, appliedCouponCode]
   );
 
   const cartTotal = cartTotals.subtotal;
@@ -200,34 +144,14 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   };
 
   const applyCoupon = (couponCode: string): CouponApplyResult => {
-    const normalizedCode = normalizeCouponCode(couponCode);
-    if (!normalizedCode) {
-      return { success: false, message: 'Enter a coupon code to apply.' };
+    const subtotal = items.reduce((acc, item) => acc + item.price * item.quantity, 0);
+    const result = validateCoupon(couponCode, subtotal, discounts);
+    
+    if (result.success) {
+      setAppliedCouponCode(normalizeCouponCode(couponCode));
     }
-
-    const matchingDiscounts = discounts.filter(
-      (discount) => discount.isActive && normalizeCouponCode(discount.code ?? '') === normalizedCode,
-    );
-
-    if (matchingDiscounts.length === 0) {
-      return { success: false, message: 'Coupon not found or inactive.' };
-    }
-
-    const eligibleDiscount = matchingDiscounts.find(
-      (discount) => (discount.minOrderAmount ?? 0) <= subtotal,
-    );
-
-    if (!eligibleDiscount) {
-      const minOrder = Math.min(...matchingDiscounts.map((discount) => discount.minOrderAmount ?? 0));
-      const amountNeeded = Math.max(0, minOrder - subtotal);
-      return {
-        success: false,
-        message: `Add $${amountNeeded.toFixed(2)} more to use this code.`,
-      };
-    }
-
-    setAppliedCouponCode(normalizedCode);
-    return { success: true, message: `${eligibleDiscount.name} applied.` };
+    
+    return { success: result.success, message: result.message };
   };
 
   const clearCoupon = () => {

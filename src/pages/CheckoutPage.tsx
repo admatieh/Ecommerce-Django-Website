@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { ChevronLeft, ShoppingBag, AlertCircle, Check } from 'lucide-react';
+import { ChevronLeft, ShoppingBag, AlertCircle, Check, CreditCard, Banknote } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { createOrder, formatEstimatedDelivery } from '../services/orderService';
 import { Order, ShippingAddress, OrderItem } from '../types/product';
 import Button from '../components/Button';
+
+type PaymentMethod = 'cod' | 'card';
 
 interface CheckoutFormState {
   fullName: string;
@@ -13,10 +15,7 @@ interface CheckoutFormState {
   address: string;
   city: string;
   country: string;
-  paymentMethod: 'credit_card' | 'cod';
-  cardNumber: string;
-  expiry: string;
-  cvv: string;
+  paymentMethod: PaymentMethod;
 }
 
 interface FormErrors {
@@ -26,40 +25,11 @@ interface FormErrors {
   address?: string;
   city?: string;
   country?: string;
-  cardNumber?: string;
-  expiry?: string;
-  cvv?: string;
 }
 
 interface CheckoutSuccessState {
   order?: Order;
 }
-
-const formatCardNumber = (value: string): string => {
-  const digitsOnly = value.replace(/\D/g, '').slice(0, 16);
-  return digitsOnly.replace(/(.{4})/g, '$1 ').trim();
-};
-
-const formatExpiry = (value: string): string => {
-  const digitsOnly = value.replace(/\D/g, '').slice(0, 4);
-  if (digitsOnly.length <= 2) return digitsOnly;
-  return `${digitsOnly.slice(0, 2)}/${digitsOnly.slice(2)}`;
-};
-
-const isValidExpiry = (expiry: string): boolean => {
-  if (!/^\d{2}\/\d{2}$/.test(expiry)) return false;
-
-  const [monthText, yearText] = expiry.split('/');
-  const month = Number(monthText);
-  const year = Number(yearText);
-  if (month < 1 || month > 12) return false;
-
-  const now = new Date();
-  const currentYear = now.getFullYear() % 100;
-  const currentMonth = now.getMonth() + 1;
-
-  return year > currentYear || (year === currentYear && month >= currentMonth);
-};
 
 const validateEmail = (email: string): boolean => /^\S+@\S+\.\S+$/.test(email);
 
@@ -130,10 +100,7 @@ export default function CheckoutPage() {
     address: '',
     city: '',
     country: '',
-    paymentMethod: 'credit_card',
-    cardNumber: '',
-    expiry: '',
-    cvv: '',
+    paymentMethod: 'cod',
   });
 
   const [errors, setErrors] = useState<FormErrors>({});
@@ -176,43 +143,15 @@ export default function CheckoutPage() {
     if (!form.city.trim()) newErrors.city = 'City is required';
     if (!form.country) newErrors.country = 'Country is required';
 
-    if (form.paymentMethod === 'credit_card') {
-      if (form.cardNumber.replace(/\s/g, '').length !== 16) {
-        newErrors.cardNumber = 'Enter a valid 16-digit card number';
-      }
-      if (!isValidExpiry(form.expiry)) {
-        newErrors.expiry = 'Enter a valid expiry date';
-      }
-      if (form.cvv.length < 3) {
-        newErrors.cvv = 'Enter a valid CVV';
-      }
-    }
-
     return newErrors;
   };
 
   const isFormValid = useMemo(() => {
-    return Object.keys(validateForm()).length === 0;
+    return Object.keys(validateForm()).length === 0 && form.paymentMethod === 'cod';
   }, [form]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
-
-    if (name === 'cardNumber') {
-      setForm((prev) => ({ ...prev, cardNumber: formatCardNumber(value) }));
-      return;
-    }
-
-    if (name === 'expiry') {
-      setForm((prev) => ({ ...prev, expiry: formatExpiry(value) }));
-      return;
-    }
-
-    if (name === 'cvv') {
-      setForm((prev) => ({ ...prev, cvv: value.replace(/\D/g, '').slice(0, 4) }));
-      return;
-    }
-
     setForm((prev) => ({ ...prev, [name]: value }));
   };
 
@@ -227,7 +166,7 @@ export default function CheckoutPage() {
     setErrors(formErrors);
     setTouched(new Set(Object.keys(form)));
 
-    if (Object.keys(formErrors).length > 0 || items.length === 0) return;
+    if (Object.keys(formErrors).length > 0 || items.length === 0 || form.paymentMethod !== 'cod') return;
 
     setIsSubmitting(true);
 
@@ -254,7 +193,7 @@ export default function CheckoutPage() {
       const order = await createOrder({
         items: orderItems,
         shippingAddress,
-        paymentMethod: form.paymentMethod,
+        paymentMethod: 'cod',
         totals: cartTotals,
       });
 
@@ -306,6 +245,10 @@ export default function CheckoutPage() {
               <div className="flex justify-between">
                 <span className="text-textLight">Total</span>
                 <span className="font-medium text-textMain">${order.total.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-textLight">Payment</span>
+                <span className="text-textMain">Cash on Delivery</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-textLight">Delivery by</span>
@@ -459,32 +402,14 @@ export default function CheckoutPage() {
             </section>
 
             <section className="mb-12">
-              <h2 className="text-xl font-serif text-textMain mb-6">Payment</h2>
+              <h2 className="text-xl font-serif text-textMain mb-6">Payment Method</h2>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Cash on Delivery Option */}
                 <label
-                  className={`cursor-pointer rounded-2xl border p-4 transition-all ${
-                    form.paymentMethod === 'credit_card'
-                      ? 'border-textMain bg-black/[0.02]'
-                      : 'border-black/10 hover:border-black/20'
-                  }`}
-                >
-                  <input
-                    type="radio"
-                    name="paymentMethod"
-                    value="credit_card"
-                    checked={form.paymentMethod === 'credit_card'}
-                    onChange={handleInputChange}
-                    className="sr-only"
-                  />
-                  <p className="text-sm font-semibold text-textMain uppercase tracking-wider">Card</p>
-                  <p className="text-xs text-textLight mt-1">Visa, Mastercard, American Express</p>
-                </label>
-
-                <label
-                  className={`cursor-pointer rounded-2xl border p-4 transition-all ${
+                  className={`cursor-pointer rounded-2xl border p-5 transition-all duration-200 ${
                     form.paymentMethod === 'cod'
-                      ? 'border-textMain bg-black/[0.02]'
+                      ? 'border-brand bg-brand/5 ring-1 ring-brand/20'
                       : 'border-black/10 hover:border-black/20'
                   }`}
                 >
@@ -496,50 +421,61 @@ export default function CheckoutPage() {
                     onChange={handleInputChange}
                     className="sr-only"
                   />
-                  <p className="text-sm font-semibold text-textMain uppercase tracking-wider">Cash on Delivery</p>
-                  <p className="text-xs text-textLight mt-1">Pay when your order arrives</p>
+                  <div className="flex items-start gap-3">
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${
+                      form.paymentMethod === 'cod' ? 'bg-brand text-white' : 'bg-black/5 text-textLight'
+                    }`}>
+                      <Banknote size={18} />
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-textMain">Cash on Delivery</p>
+                      <p className="text-xs text-textLight mt-1">Pay when your order arrives</p>
+                    </div>
+                  </div>
+                </label>
+
+                {/* Card Payment Option (Coming Soon) */}
+                <label
+                  className={`cursor-pointer rounded-2xl border p-5 transition-all duration-200 relative overflow-hidden ${
+                    form.paymentMethod === 'card'
+                      ? 'border-textMain/30 bg-black/[0.02]'
+                      : 'border-black/10 hover:border-black/15'
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="paymentMethod"
+                    value="card"
+                    checked={form.paymentMethod === 'card'}
+                    onChange={handleInputChange}
+                    className="sr-only"
+                  />
+                  <div className="flex items-start gap-3">
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${
+                      form.paymentMethod === 'card' ? 'bg-textMain/20 text-textMain' : 'bg-black/5 text-textLight'
+                    }`}>
+                      <CreditCard size={18} />
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-textMain flex items-center gap-2">
+                        Pay with Card
+                        <span className="text-[10px] font-medium uppercase tracking-wider text-brand bg-brand/10 px-2 py-0.5 rounded-full">
+                          Coming Soon
+                        </span>
+                      </p>
+                      <p className="text-xs text-textLight mt-1">Visa, Mastercard, American Express</p>
+                    </div>
+                  </div>
                 </label>
               </div>
 
-              {form.paymentMethod === 'credit_card' && (
-                <div className="space-y-5">
-                  <InputField
-                    id="cardNumber"
-                    label="Card Number"
-                    inputMode="numeric"
-                    autoComplete="cc-number"
-                    value={form.cardNumber}
-                    onChange={handleInputChange}
-                    onBlur={() => handleBlur('cardNumber')}
-                    placeholder="1234 5678 9012 3456"
-                    error={touched.has('cardNumber') ? errors.cardNumber : undefined}
-                  />
-
-                  <div className="grid grid-cols-2 gap-5">
-                    <InputField
-                      id="expiry"
-                      label="Expiry"
-                      inputMode="numeric"
-                      autoComplete="cc-exp"
-                      value={form.expiry}
-                      onChange={handleInputChange}
-                      onBlur={() => handleBlur('expiry')}
-                      placeholder="MM/YY"
-                      error={touched.has('expiry') ? errors.expiry : undefined}
-                    />
-                    <InputField
-                      id="cvv"
-                      label="CVV"
-                      type="password"
-                      inputMode="numeric"
-                      autoComplete="cc-csc"
-                      value={form.cvv}
-                      onChange={handleInputChange}
-                      onBlur={() => handleBlur('cvv')}
-                      placeholder="123"
-                      error={touched.has('cvv') ? errors.cvv : undefined}
-                    />
-                  </div>
+              {/* Card Payment Coming Soon Message */}
+              {form.paymentMethod === 'card' && (
+                <div className="mt-5 p-4 rounded-xl bg-amber-50 border border-amber-200/50">
+                  <p className="text-sm text-amber-800 font-medium mb-1">Online payments coming soon</p>
+                  <p className="text-xs text-amber-700">
+                    We&apos;re working on secure card payments. For now, please select Cash on Delivery to complete your order.
+                  </p>
                 </div>
               )}
             </section>
@@ -666,11 +602,16 @@ export default function CheckoutPage() {
                     : 'bg-black/10 text-textLight hover:bg-black/10 cursor-not-allowed'
                 }`}
               >
-                Place Order
+                {form.paymentMethod === 'cod' ? 'Place Order' : 'Select Payment Method'}
               </Button>
-              {!isFormValid && items.length > 0 && (
+              {form.paymentMethod === 'card' && (
+                <p className="text-center text-[11px] text-amber-600 mt-4 uppercase tracking-widest">
+                  Card payments not yet available
+                </p>
+              )}
+              {!isFormValid && form.paymentMethod === 'cod' && items.length > 0 && (
                 <p className="text-center text-[11px] text-textLight mt-4 uppercase tracking-widest">
-                  Please complete shipping and payment details
+                  Please complete shipping details
                 </p>
               )}
             </div>
