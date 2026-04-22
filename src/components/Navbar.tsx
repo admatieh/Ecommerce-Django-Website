@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { User, ShoppingBag, Search, Menu, X } from 'lucide-react';
+import { ShoppingBag, Search, Menu, X } from 'lucide-react';
 import { NavLink, Link } from 'react-router-dom';
 import { navigationLinks } from '../data/mockData';
 import { useCart } from '../context/CartContext';
@@ -96,13 +96,6 @@ export default function Navbar() {
             <span className="hidden lg:inline">Search</span>
           </Link>
           <button
-            className="flex items-center gap-2 text-sm hover:text-brand transition-all duration-200 hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 rounded-full p-1"
-            aria-label="Account"
-          >
-            <User size={18} strokeWidth={1.5} />
-            <span className="hidden lg:inline">Account</span>
-          </button>
-          <button
             className="flex items-center gap-2 text-sm hover:text-brand transition-all duration-200 hover:opacity-80 active:scale-90 active:translate-x-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 rounded-full p-1 relative"
             onClick={openCart}
             aria-label={`Open cart, ${cartCount} items`}
@@ -165,10 +158,6 @@ export default function Navbar() {
             <Search size={20} strokeWidth={1.5} />
             <span className="text-sm font-medium">Search</span>
           </Link>
-          <button className="flex items-center gap-3 text-textLight hover:text-textMain transition-colors w-full py-3">
-            <User size={20} strokeWidth={1.5} />
-            <span className="text-sm font-medium">Account</span>
-          </button>
         </div>
       </div>
     </nav>
