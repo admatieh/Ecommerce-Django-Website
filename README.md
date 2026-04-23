@@ -34,6 +34,7 @@ Velora is a fully functional e-commerce storefront.
 2. Install dependencies (make sure you have a virtual environment active):
    ```bash
    pip install -r requirements.txt
+   cd ..
    ```
 3. Run migrations:
    ```bash
@@ -50,9 +51,9 @@ Velora is a fully functional e-commerce storefront.
 
 ### Frontend
 
-1. Navigate to the frontend directory:
+1. Navigate to the project root directory:
    ```bash
-   cd frontend
+   cd ./root_directory
    ```
 2. Install dependencies:
    ```bash
