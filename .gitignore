@@ -16,3 +16,26 @@ pnpm-debug.log*
 *~
 .cache
 .turbo
+
+# Python / Django
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual Environment
+venv/
+env/
+.venv/
+
+# Django DB
+db.sqlite3
+db.sqlite3-journal
+
+# Django Media & Static
+media/
+staticfiles/
+static/
+
+# Environment Variables
+.env
+*.env
