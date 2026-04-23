@@ -51,9 +51,9 @@ Velora is a fully functional e-commerce storefront.
 
 ### Frontend
 
-1. Navigate to the frontend directory:
+1. Navigate to the root directory:
    ```bash
-   cd frontend
+   cd /root_project_directory
    ```
 2. Install dependencies:
    ```bash
