@@ -2,6 +2,7 @@ import { useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Product } from '../types/product';
 import { getCategoryForProduct } from '../services/productService';
+import { formatPrice } from '../utils/format';
 import ImageCarousel from './ImageCarousel';
 
 type ProductCardProps = {
@@ -10,6 +11,7 @@ type ProductCardProps = {
 
 export default function ProductCard({ product }: ProductCardProps) {
   const navigate = useNavigate();
+  // Reads from the category cache — never crashes even if cache is cold
   const category = getCategoryForProduct(product);
   const cardRef = useRef<HTMLDivElement | null>(null);
 
@@ -43,13 +45,15 @@ export default function ProductCard({ product }: ProductCardProps) {
     card.style.transform = 'perspective(1000px) rotateX(0deg) rotateY(0deg) translateY(0)';
   };
 
+  // discountPrice is always a number (or undefined) after API normalisation
   const displayPrice = product.discountPrice ?? product.price;
-  const hasDiscount = product.discountPrice && product.discountPrice < product.price;
+  const hasDiscount = product.discountPrice !== undefined && product.discountPrice < product.price;
 
   const cardContent = (
     <>
       <div className="relative overflow-hidden rounded-2xl mb-4 bg-gray-100 aspect-[3/4] shadow-sm group-hover:shadow-lg transition-shadow duration-500">
         <ImageCarousel images={product.images} />
+        {/* Category badge — only shown when the cache has the category */}
         {category && (
           <span className="absolute top-3 left-3 z-10 bg-white/80 backdrop-blur-md text-[11px] font-medium uppercase tracking-wider text-textMain px-3 py-1 rounded-full opacity-100 transition-opacity duration-300">
             {category.name}
@@ -66,12 +70,13 @@ export default function ProductCard({ product }: ProductCardProps) {
           {product.name}
         </h3>
         <div className="flex items-baseline gap-1.5 whitespace-nowrap">
+          {/* formatPrice handles number | string | null safely */}
           <p className="text-sm text-textMain font-medium">
-            ${displayPrice.toFixed(2)}
+            {formatPrice(displayPrice)}
           </p>
           {hasDiscount && (
             <p className="text-xs text-textLight line-through">
-              ${product.price.toFixed(2)}
+              {formatPrice(product.price)}
             </p>
           )}
         </div>
@@ -89,7 +94,7 @@ export default function ProductCard({ product }: ProductCardProps) {
       onMouseLeave={handleMouseLeave}
       role="button"
       tabIndex={0}
-      aria-label={`View ${product.name}, $${displayPrice.toFixed(2)}`}
+      aria-label={`View ${product.name}, ${formatPrice(displayPrice)}`}
       style={{ transformStyle: 'preserve-3d', willChange: 'transform' }}
     >
       {cardContent}

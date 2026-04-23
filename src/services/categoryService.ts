@@ -1,29 +1,54 @@
-import { categories } from '../data/mockData';
+/**
+ * src/services/categoryService.ts
+ *
+ * Fetches category data from the Django REST API.
+ * Signatures match the original mock service exactly.
+ *
+ * API endpoints consumed:
+ *   GET /api/categories/     – list active categories
+ *   GET /api/categories/<id>/ – single category
+ *
+ * Category cache:
+ *   A module-level cache is updated on every successful fetch.
+ *   This allows synchronous category lookup by ID/slug from anywhere
+ *   in the app (e.g. ProductCard) without threading the categories
+ *   array through every component tree.
+ */
+
 import { Category } from '../types/product';
+import { apiFetch } from './api';
 
-const MOCK_API_DELAY_MS = 80;
+// ---------------------------------------------------------------------------
+// Module-level cache — updated on every successful fetch
+// ---------------------------------------------------------------------------
+let _categoryCache: Category[] = [];
 
-const delay = (ms: number): Promise<void> =>
-  new Promise((resolve) => {
-    window.setTimeout(resolve, ms);
-  });
+/** Synchronously returns the most recently fetched category list.
+ *  Returns [] before the first successful fetch completes. */
+export const getCachedCategories = (): Category[] => _categoryCache;
 
-const maybeThrowSimulatedError = (): void => {
-  if (typeof window !== 'undefined' && window.localStorage.getItem('velora:simulateApiError') === '1') {
-    throw new Error('Simulated API failure');
-  }
-};
+/** Synchronously look up a category by product's categoryId.
+ *  Returns null if not found or cache is not yet populated. */
+export const getCategoryById = (categoryId: number): Category | null =>
+  _categoryCache.find((c) => c.id === categoryId) ?? null;
 
+// ---------------------------------------------------------------------------
+// Async data loaders
+// ---------------------------------------------------------------------------
+
+/** Fetch all active categories and update the cache. */
 export const getCategories = async (): Promise<Category[]> => {
-  await delay(MOCK_API_DELAY_MS);
-  maybeThrowSimulatedError();
-  return categories.filter((category) => category.isActive);
+  const data = await apiFetch<Category[]>('/categories/');
+  _categoryCache = data;   // keep cache in sync
+  return data;
 };
 
+/** Fetch multiple categories by their IDs (preserves order). */
 export const getCategoriesByIds = async (categoryIds: number[]): Promise<Category[]> => {
-  await delay(MOCK_API_DELAY_MS);
-  maybeThrowSimulatedError();
+  if (categoryIds.length === 0) return [];
+  // Ensure the cache is populated first
+  const all = _categoryCache.length > 0 ? _categoryCache : await getCategories();
   return categoryIds
-    .map((id) => categories.find((category) => category.id === id && category.isActive))
-    .filter((category): category is Category => Boolean(category));
+    .map((id) => all.find((c) => c.id === id))
+    .filter((c): c is Category => Boolean(c));
 };

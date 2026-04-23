@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import Button from '../../components/Button';
 import { HeroSection } from '../../types/landing';
 import { Product } from '../../types/product';
+import { formatPrice } from '../../utils/format';
 
 type HeroProps = {
   data: HeroSection;
@@ -77,7 +78,7 @@ export default function Hero({ data, products }: HeroProps) {
                   <div>
                     <p className="text-sm font-semibold text-textMain">{product.name}</p>
                     <p className="text-xs text-textMain/70">
-                      ${tagPrice.toFixed(2)}
+                      {formatPrice(tagPrice)}
                     </p>
                   </div>
                   <Link

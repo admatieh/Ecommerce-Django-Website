@@ -90,7 +90,7 @@ export type ShippingAddress = {
 };
 
 export type Order = {
-  id: string;
+  id: number;
   items: OrderItem[];
   shippingAddress: ShippingAddress;
   paymentMethod: 'credit_card' | 'cod';

@@ -105,27 +105,25 @@ export default function CartDrawer() {
   if (!shouldRender) return null;
 
   return (
-    <div
-      className={`fixed inset-0 z-[200] flex justify-end ${isCartOpen ? 'pointer-events-auto' : 'pointer-events-none'}`}
-      role="dialog"
-      aria-modal="true"
-      aria-label="Shopping cart"
-    >
+    <>
       {/* Backdrop */}
       <div
-        className={`absolute inset-0 bg-black/50 backdrop-blur-sm transition-opacity duration-300 ${
-          isCartOpen ? 'opacity-100' : 'opacity-0'
+        className={`fixed top-0 left-0 right-0 h-[100vh] z-[190] transition-opacity duration-300 ease-out ${
+          isCartOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
         }`}
+        style={{ background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(4px)' }}
         onClick={closeCart}
         aria-hidden="true"
       />
 
       {/* Drawer */}
       <div
-        className={`relative w-full max-w-md bg-white h-full shadow-2xl flex flex-col transform transition-transform duration-300 ease-out will-change-transform ${
+        className={`fixed top-0 right-0 h-[100vh] w-full max-w-md bg-white shadow-2xl z-[200] flex flex-col transform transition-transform duration-300 ease-out will-change-transform ${
           isCartOpen ? 'translate-x-0' : 'translate-x-full'
         }`}
-        onClick={e => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Shopping cart"
       >
         {/* Header */}
         <div className="flex items-center justify-between border-b border-black/5 px-5 sm:px-6 py-5 sm:py-6 shrink-0">
@@ -363,6 +361,6 @@ export default function CartDrawer() {
           </div>
         )}
       </div>
-    </div>
+    </>
   );
 }

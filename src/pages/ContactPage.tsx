@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { Phone, MapPin, Clock, Send, CheckCircle2 } from 'lucide-react';
 import Button from '../components/Button';
+import { submitContactMessage } from '../services/authService';
 
 interface ContactFormState {
   name: string;
@@ -31,21 +32,24 @@ export default function ContactPage() {
     return /^\S+@\S+\.\S+$/.test(email);
   }, [form]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!isFormValid) return;
 
     setIsSubmitting(true);
 
-    // Simulate API call
-    setTimeout(() => {
+    try {
+      await submitContactMessage(form);
       setIsSubmitting(false);
       setIsSuccess(true);
       setForm({ name: '', email: '', subject: '', message: '' });
-      
+
       // Reset success message after 5 seconds
       setTimeout(() => setIsSuccess(false), 5000);
-    }, 1200);
+    } catch {
+      setIsSubmitting(false);
+      // Could add error state here; for now just stop loading
+    }
   };
 
   return (

@@ -2,8 +2,11 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { ChevronLeft, ShoppingBag, AlertCircle, Check, CreditCard, Banknote } from 'lucide-react';
 import { useCart } from '../context/CartContext';
+import { useAuth } from '../context/AuthContext';
 import { createOrder, formatEstimatedDelivery } from '../services/orderService';
+import { getAddresses } from '../services/authService';
 import { Order, ShippingAddress, OrderItem } from '../types/product';
+import { Address } from '../types/auth';
 import Button from '../components/Button';
 
 type PaymentMethod = 'cod' | 'card';
@@ -90,6 +93,7 @@ export default function CheckoutPage() {
   } = useCart();
   const navigate = useNavigate();
   const location = useLocation();
+  const { user } = useAuth();
   const isConfirmationRoute = location.pathname === '/checkout/success';
   const successState = (location.state as CheckoutSuccessState | null) || null;
 
@@ -112,6 +116,55 @@ export default function CheckoutPage() {
   const [totalsPulse, setTotalsPulse] = useState<boolean>(false);
   const [submitError, setSubmitError] = useState<string>('');
   const lastTotalRef = useRef<number>(cartTotals.total);
+
+  const [addresses, setAddresses] = useState<Address[]>([]);
+  const [selectedAddressId, setSelectedAddressId] = useState<number | 'new'>('new');
+
+  useEffect(() => {
+    getAddresses().then(data => {
+      setAddresses(data);
+      const defaultAddr = data.find(a => a.isDefault) || data[0];
+      if (defaultAddr) {
+        setSelectedAddressId(defaultAddr.id);
+        setForm(prev => ({
+          ...prev,
+          fullName: defaultAddr.fullName,
+          email: user?.email || prev.email,
+          phone: defaultAddr.phone,
+          address: defaultAddr.addressLine,
+          city: defaultAddr.city,
+          country: defaultAddr.country
+        }));
+      } else if (user?.email) {
+        setForm(prev => ({ ...prev, email: user.email }));
+      }
+    }).catch(console.error);
+  }, []);
+
+  const handleAddressSelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const val = e.target.value;
+    if (val === 'new') {
+      setSelectedAddressId('new');
+      setForm(prev => ({
+        ...prev,
+        fullName: '', phone: '', address: '', city: '', country: ''
+      }));
+    } else {
+      const id = parseInt(val, 10);
+      setSelectedAddressId(id);
+      const addr = addresses.find(a => a.id === id);
+      if (addr) {
+        setForm(prev => ({
+          ...prev,
+          fullName: addr.fullName,
+          phone: addr.phone,
+          address: addr.addressLine,
+          city: addr.city,
+          country: addr.country
+        }));
+      }
+    }
+  };
 
   const finalTotal = cartTotals.total;
   const estimatedDelivery = useMemo(() => {
@@ -281,6 +334,25 @@ export default function CheckoutPage() {
     );
   }
 
+  if (user && !user.isEmailVerified) {
+    return (
+      <div className="min-h-screen bg-background pt-32 pb-24 px-6 flex flex-col items-center justify-center animate-fade-in-up">
+        <div className="w-20 h-20 rounded-full bg-amber-50 flex items-center justify-center mb-8">
+          <AlertCircle size={32} strokeWidth={1.5} className="text-amber-500" />
+        </div>
+        <h1 className="text-3xl font-serif text-textMain mb-4 text-center">Email Verification Required</h1>
+        <p className="text-textLight mb-8 text-center max-w-md">
+          Please verify your email address before placing an order. Check your inbox for the verification link.
+        </p>
+        <Link to="/account">
+          <Button className="px-8 py-3.5 uppercase tracking-widest text-xs font-semibold bg-brand text-white hover:opacity-90">
+            Go to Account
+          </Button>
+        </Link>
+      </div>
+    );
+  }
+
   if (items.length === 0) {
     return (
       <div className="min-h-screen bg-background pt-32 pb-24 px-6 flex flex-col items-center justify-center animate-fade-in-up">
@@ -318,6 +390,26 @@ export default function CheckoutPage() {
           <div className="flex-1 lg:max-w-2xl">
             <section className="mb-12">
               <h2 className="text-xl font-serif text-textMain mb-6">Shipping Information</h2>
+              {addresses.length > 0 && (
+                <div className="mb-6">
+                  <label htmlFor="savedAddress" className="block text-xs font-semibold uppercase tracking-widest text-textMain mb-2">
+                    Saved Addresses
+                  </label>
+                  <select
+                    id="savedAddress"
+                    value={selectedAddressId}
+                    onChange={handleAddressSelect}
+                    className="w-full px-4 py-3 bg-white border border-black/10 rounded-xl text-textMain focus:outline-none focus:ring-2 focus:ring-brand/40 transition-all appearance-none"
+                  >
+                    <option value="new">Enter new address...</option>
+                    {addresses.map((addr) => (
+                      <option key={addr.id} value={addr.id}>
+                        {addr.fullName} - {addr.addressLine}, {addr.city}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
               <div className="space-y-5">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                   <InputField
