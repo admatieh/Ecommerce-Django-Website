@@ -9,6 +9,7 @@ Endpoints (all read-only, no auth required for GET):
   GET /api/products/<id>/related/  – related products (same category)
   GET /api/categories/             – list active categories
   GET /api/pricing/                – discounts + shipping rules (for frontend pricing engine)
+  POST /api/contact/               – submit contact form message
 
 Filtering on /api/products/:
   ?category=dresses
@@ -17,6 +18,7 @@ Filtering on /api/products/:
   ?sort=price_asc | price_desc | newest
 """
 
+from django.db import transaction
 from django.db.models import Prefetch
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
@@ -34,7 +36,11 @@ from django.conf import settings
 
 
 from .filters import ProductFilter
-from .models import Category, Discount, Product, ProductImage, ProductVariant, ShippingRule, User, Address, Order, OrderItem, Cart, CartItem
+from .models import (
+    Category, Discount, Product, ProductImage, ProductVariant,
+    ShippingRule, User, Address, Order, OrderItem, Cart, CartItem,
+    ContactMessage,
+)
 from .serializers import (
     CategorySerializer,
     DiscountSerializer,
@@ -47,7 +53,7 @@ from .serializers import (
     EmailTokenObtainPairSerializer,
     CartItemSerializer,
     CartSerializer,
-    CartSerializer,
+    ContactMessageSerializer,
 )
 
 
@@ -238,27 +244,87 @@ class OrderViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         return Order.objects.filter(user=self.request.user).prefetch_related('items')
 
+    @transaction.atomic
     def create(self, request, *args, **kwargs):
-        # We handle checkout here.
-        # Payload comes with shippingAddress (flat fields), paymentMethod
+        """
+        Checkout flow:
+        1. Validate address fields
+        2. Get user cart (must have items)
+        3. Validate stock for every cart item
+        4. Create Order + OrderItems (with pricing snapshot)
+        5. Decrement stock on variants
+        6. Clear cart
+        """
         data = request.data
+        
+        # Block unverified users
+        if not request.user.is_email_verified:
+            return Response(
+                {"message": "Please verify your email before placing an order."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
         address = data.get('shippingAddress', {})
         
         required_address_fields = ['fullName', 'email', 'phone', 'address', 'city', 'country']
         for field in required_address_fields:
             if not address.get(field):
-                return Response({"detail": f"Missing required address field: {field}"}, status=status.HTTP_400_BAD_REQUEST)
+                return Response(
+                    {"detail": f"Missing required address field: {field}"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
         
         # Get user cart
         try:
             cart = Cart.objects.get(user=request.user)
-            cart_items = cart.items.all()
+            cart_items = cart.items.select_related('product').prefetch_related('product__images', 'product__variants').all()
             if not cart_items.exists():
                 return Response({"detail": "Cart is empty"}, status=status.HTTP_400_BAD_REQUEST)
         except Cart.DoesNotExist:
             return Response({"detail": "Cart is empty"}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Basic order creation
+        # Validate stock for every item
+        stock_errors = []
+        for item in cart_items:
+            # Try to find exact variant match
+            variant_qs = item.product.variants.all()
+            if item.size:
+                variant_qs = variant_qs.filter(size=item.size)
+            if item.color:
+                variant_qs = variant_qs.filter(color=item.color)
+
+            variant = variant_qs.first()
+            if not variant:
+                stock_errors.append(
+                    f"{item.product.name} ({item.size}/{item.color}) is not available."
+                )
+            elif variant.stock < item.quantity:
+                stock_errors.append(
+                    f"{item.product.name} only has {variant.stock} in stock (requested {item.quantity})."
+                )
+
+        if stock_errors:
+            return Response(
+                {"detail": "Some items are out of stock.", "errors": stock_errors},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Compute server-side totals from cart items
+        subtotal = 0
+        for item in cart_items:
+            unit_price = item.product.discount_price if item.product.discount_price else item.product.price
+            subtotal += float(unit_price) * item.quantity
+
+        # Accept client discount/shipping since coupon logic is frontend-driven
+        discount_amount = float(data.get('discount', 0))
+        shipping_amount = float(data.get('shipping', 0))
+        total = max(0, subtotal - discount_amount) + shipping_amount
+
+        # Create order
+        from datetime import timedelta
+        from django.utils import timezone
+        estimated_delivery = timezone.now() + timedelta(days=5)
+
         order = Order.objects.create(
             user=request.user,
             full_name=address.get('fullName', ''),
@@ -268,30 +334,46 @@ class OrderViewSet(viewsets.ModelViewSet):
             city=address.get('city', ''),
             country=address.get('country', ''),
             payment_method=data.get('paymentMethod', 'credit_card'),
-            subtotal=data.get('subtotal', 0),
-            discount=data.get('discount', 0),
-            shipping=data.get('shipping', 0),
-            total=data.get('total', 0),
+            subtotal=subtotal,
+            discount=discount_amount,
+            shipping=shipping_amount,
+            total=total,
+            estimated_delivery=estimated_delivery,
         )
 
-        # Create order items
+        # Create order items + decrement stock
         for item in cart_items:
+            unit_price = item.product.discount_price if item.product.discount_price else item.product.price
+            first_image = item.product.images.order_by('order').first()
+
             OrderItem.objects.create(
                 order=order,
                 product=item.product,
                 product_name=item.product.name,
-                price=item.product.price,
-                image=item.product.images.order_by('order').first().image_url if item.product.images.exists() else '',
+                price=unit_price,
+                image=first_image.image_url if first_image else '',
                 size=item.size,
                 color=item.color,
-                quantity=item.quantity
+                quantity=item.quantity,
             )
+
+            # Decrement variant stock
+            variant_qs = item.product.variants.all()
+            if item.size:
+                variant_qs = variant_qs.filter(size=item.size)
+            if item.color:
+                variant_qs = variant_qs.filter(color=item.color)
+            variant = variant_qs.first()
+            if variant:
+                variant.stock = max(0, variant.stock - item.quantity)
+                variant.save()
 
         # Clear cart
         cart_items.delete()
 
         serializer = self.get_serializer(order)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
+
 
 # ---------------------------------------------------------------------------
 # Cart
@@ -355,3 +437,75 @@ class CartView(APIView):
             
         return Response({"success": True})
 
+
+# ---------------------------------------------------------------------------
+# Contact
+# ---------------------------------------------------------------------------
+
+class ContactMessageView(APIView):
+    """
+    POST /api/contact/
+    Accepts { name, email, subject, message } and saves to DB.
+    """
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        serializer = ContactMessageSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(
+                {"message": "Your message has been sent successfully."},
+                status=status.HTTP_201_CREATED,
+            )
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+# ---------------------------------------------------------------------------
+# Subscriber
+# ---------------------------------------------------------------------------
+
+class SubscriberView(APIView):
+    """
+    POST /api/subscribe/
+    """
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        from store.models import Subscriber
+
+        user = request.user
+
+        if not user.is_authenticated:
+            return Response(
+                {"message": "You must be logged in to subscribe"},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+
+        if not user.is_email_verified:
+            return Response(
+                {"message": "Verify your email first"},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        subscriber, created = Subscriber.objects.get_or_create(email=user.email, defaults={"user": user})
+        
+        if not created:
+            return Response(
+                {"message": "You are already subscribed"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        return Response({"message": "Subscribed successfully"})
+
+
+class SubscriberStatusView(APIView):
+    """
+    GET /api/subscribe/status/
+    """
+    from rest_framework.permissions import IsAuthenticated
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from store.models import Subscriber
+        is_subscribed = Subscriber.objects.filter(user=request.user).exists()
+        return Response({"isSubscribed": is_subscribed})

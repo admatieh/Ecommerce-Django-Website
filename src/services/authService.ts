@@ -58,3 +58,15 @@ export const getOrders = async (): Promise<Order[]> => {
 export const getOrder = async (id: number): Promise<Order> => {
   return await apiFetch<Order>(`/orders/${id}/`);
 };
+
+export const submitContactMessage = async (data: {
+  name: string;
+  email: string;
+  subject: string;
+  message: string;
+}): Promise<{ message: string }> => {
+  return await apiFetch<{ message: string }>('/contact/', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+};

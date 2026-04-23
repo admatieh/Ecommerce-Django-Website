@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { ChevronLeft, ShoppingBag, AlertCircle, Check, CreditCard, Banknote } from 'lucide-react';
 import { useCart } from '../context/CartContext';
+import { useAuth } from '../context/AuthContext';
 import { createOrder, formatEstimatedDelivery } from '../services/orderService';
 import { getAddresses } from '../services/authService';
 import { Order, ShippingAddress, OrderItem } from '../types/product';
@@ -92,6 +93,7 @@ export default function CheckoutPage() {
   } = useCart();
   const navigate = useNavigate();
   const location = useLocation();
+  const { user } = useAuth();
   const isConfirmationRoute = location.pathname === '/checkout/success';
   const successState = (location.state as CheckoutSuccessState | null) || null;
 
@@ -127,11 +129,14 @@ export default function CheckoutPage() {
         setForm(prev => ({
           ...prev,
           fullName: defaultAddr.fullName,
+          email: user?.email || prev.email,
           phone: defaultAddr.phone,
           address: defaultAddr.addressLine,
           city: defaultAddr.city,
           country: defaultAddr.country
         }));
+      } else if (user?.email) {
+        setForm(prev => ({ ...prev, email: user.email }));
       }
     }).catch(console.error);
   }, []);
@@ -325,6 +330,25 @@ export default function CheckoutPage() {
             </Button>
           </Link>
         </div>
+      </div>
+    );
+  }
+
+  if (user && !user.isEmailVerified) {
+    return (
+      <div className="min-h-screen bg-background pt-32 pb-24 px-6 flex flex-col items-center justify-center animate-fade-in-up">
+        <div className="w-20 h-20 rounded-full bg-amber-50 flex items-center justify-center mb-8">
+          <AlertCircle size={32} strokeWidth={1.5} className="text-amber-500" />
+        </div>
+        <h1 className="text-3xl font-serif text-textMain mb-4 text-center">Email Verification Required</h1>
+        <p className="text-textLight mb-8 text-center max-w-md">
+          Please verify your email address before placing an order. Check your inbox for the verification link.
+        </p>
+        <Link to="/account">
+          <Button className="px-8 py-3.5 uppercase tracking-widest text-xs font-semibold bg-brand text-white hover:opacity-90">
+            Go to Account
+          </Button>
+        </Link>
       </div>
     );
   }

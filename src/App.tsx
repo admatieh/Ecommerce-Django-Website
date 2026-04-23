@@ -49,8 +49,16 @@ function AnimatedRoutes() {
         <Routes location={displayLocation}>
           <Route path="/" element={<LandingPage />} />
           <Route path="/collections" element={<CollectionsPage />} />
-          <Route path="/checkout" element={<CheckoutPage />} />
-          <Route path="/checkout/success" element={<CheckoutPage />} />
+          <Route path="/checkout" element={
+            <ProtectedRoute>
+              <CheckoutPage />
+            </ProtectedRoute>
+          } />
+          <Route path="/checkout/success" element={
+            <ProtectedRoute>
+              <CheckoutPage />
+            </ProtectedRoute>
+          } />
           <Route path="/product/:id" element={<ProductPage />} />
           <Route path="/search" element={<SearchPage />} />
           <Route path="/about" element={<AboutPage />} />

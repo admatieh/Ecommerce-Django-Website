@@ -14,7 +14,7 @@ Frontend interfaces mapped:
 
 from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
-from .models import Category, Discount, Product, ProductImage, ProductVariant, ShippingRule, User, Address, Order, OrderItem, Cart, CartItem
+from .models import Category, Discount, Product, ProductImage, ProductVariant, ShippingRule, User, Address, Order, OrderItem, Cart, CartItem, ContactMessage
 
 
 # ---------------------------------------------------------------------------
@@ -206,7 +206,16 @@ class EmailTokenObtainPairSerializer(TokenObtainPairSerializer):
 
     def validate(self, attrs):
         attrs[self.username_field] = attrs.pop('email')
-        return super().validate(attrs)
+        data = super().validate(attrs)
+
+        # Block login for unverified users
+        if not self.user.is_email_verified:
+            raise serializers.ValidationError(
+                {"message": "Email not verified. Please check your inbox and verify your email before logging in."},
+                code="email_not_verified",
+            )
+
+        return data
 
 
 class RegisterSerializer(serializers.ModelSerializer):
@@ -318,3 +327,14 @@ class OrderSerializer(serializers.ModelSerializer):
             "city": obj.city,
             "country": obj.country
         }
+
+
+# ---------------------------------------------------------------------------
+# Contact Message
+# ---------------------------------------------------------------------------
+
+class ContactMessageSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ContactMessage
+        fields = ["id", "name", "email", "subject", "message"]
+

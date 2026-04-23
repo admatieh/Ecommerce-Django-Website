@@ -14,12 +14,12 @@ export type AuthResponse = {
 
 export type LoginCredentials = {
   email: string;
-  password?: string;
+  password: string;
 };
 
 export type RegisterCredentials = {
   email: string;
-  password?: string;
+  password: string;
   firstName: string;
   lastName: string;
   phone?: string;

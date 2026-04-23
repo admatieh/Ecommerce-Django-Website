@@ -20,12 +20,15 @@ export default function LoginPage() {
       await login({ email, password });
       navigate('/account');
     } catch (err: any) {
-      console.log(err.response?.data);
-      setError(
-        err.response?.data?.detail || 
-        err.message || 
-        'Login failed. Please check your credentials.'
-      );
+      const data = err.response?.data;
+      // Backend sends { message: "..." } for email verification errors
+      const msg =
+        data?.message ||
+        (Array.isArray(data?.non_field_errors) ? data.non_field_errors[0] : null) ||
+        data?.detail ||
+        err.message ||
+        'Login failed. Please check your credentials.';
+      setError(msg);
     } finally {
       setIsLoading(false);
     }

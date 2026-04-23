@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
-import { ShoppingBag, Search, Menu, X } from 'lucide-react';
+import { ShoppingBag, Search, Menu, X, UserCircle } from 'lucide-react';
 import { NavLink, Link } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
+import { useAuth } from '../context/AuthContext';
 import { getNavigationLinks } from '../services/uiService';
 
 export default function Navbar() {
@@ -9,6 +10,7 @@ export default function Navbar() {
   const [isScrolled, setIsScrolled] = useState<boolean>(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState<boolean>(false);
   const { cartCount, openCart } = useCart();
+  const { isAuthenticated } = useAuth();
 
   useEffect(() => {
     const handleScroll = () => {
@@ -96,6 +98,14 @@ export default function Navbar() {
             <Search size={18} strokeWidth={1.5} />
             <span className="hidden lg:inline">Search</span>
           </Link>
+          <Link
+            to={isAuthenticated ? '/account' : '/login'}
+            className="flex items-center gap-2 text-sm hover:text-brand transition-all duration-200 hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 rounded-full p-1"
+            aria-label={isAuthenticated ? 'My account' : 'Sign in'}
+          >
+            <UserCircle size={18} strokeWidth={1.5} />
+            <span className="hidden lg:inline">{isAuthenticated ? 'Account' : 'Sign In'}</span>
+          </Link>
           <button
             className="flex items-center gap-2 text-sm hover:text-brand transition-all duration-200 hover:opacity-80 active:scale-90 active:translate-x-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 rounded-full p-1 relative"
             onClick={openCart}
@@ -112,25 +122,38 @@ export default function Navbar() {
         </div>
       </div>
 
-      {/* Mobile Menu Overlay */}
-      <div
-        className={`fixed inset-0 bg-background z-50 transition-transform duration-300 ease-out will-change-transform ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
+      {/* Mobile Menu */}
+      <>
+        {/* Backdrop */}
+        <div
+          className={`fixed top-0 left-0 right-0 h-[100vh] z-[40] transition-opacity duration-300 ease-out ${
+            mobileMenuOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
           }`}
-        role="dialog"
-        aria-modal="true"
-        aria-label="Mobile navigation menu"
-      >
-        <div className="p-6 flex justify-between items-center">
-          <span className="font-serif text-2xl tracking-widest">VELORA</span>
-          <button
-            onClick={closeMobileMenu}
-            className="p-2 transition-all duration-200 active:scale-95 hover:opacity-70 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
-            aria-label="Close menu"
-          >
-            <X size={24} strokeWidth={1.5} />
-          </button>
-        </div>
-        <div className="flex flex-col gap-1 px-6 pt-4">
+          style={{ background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(4px)' }}
+          onClick={closeMobileMenu}
+          aria-hidden="true"
+        />
+
+        {/* Drawer */}
+        <div
+          className={`fixed top-0 left-0 h-[100vh] w-[85%] max-w-sm bg-background z-[50] transition-transform duration-300 ease-out will-change-transform flex flex-col ${
+            mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
+          }`}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Mobile navigation menu"
+        >
+          <div className="p-6 flex justify-between items-center shrink-0">
+            <span className="font-serif text-2xl tracking-widest">VELORA</span>
+            <button
+              onClick={closeMobileMenu}
+              className="p-2 transition-all duration-200 active:scale-95 hover:opacity-70 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
+              aria-label="Close menu"
+            >
+              <X size={24} strokeWidth={1.5} />
+            </button>
+          </div>
+          <div className="flex flex-col gap-1 px-6 pt-4 overflow-y-auto flex-1">
           {navigationLinks.map((link, index) => (
             <NavLink
               key={link.name}
@@ -149,18 +172,27 @@ export default function Navbar() {
           ))}
         </div>
 
-        {/* Mobile menu footer actions */}
-        <div className="absolute bottom-0 left-0 right-0 p-6 border-t border-black/5">
-          <Link
-            to="/search"
-            onClick={closeMobileMenu}
-            className="flex items-center gap-3 text-textLight hover:text-textMain transition-colors w-full py-3"
-          >
-            <Search size={20} strokeWidth={1.5} />
-            <span className="text-sm font-medium">Search</span>
-          </Link>
+          {/* Mobile menu footer actions */}
+          <div className="mt-auto p-6 border-t border-black/5 space-y-1 shrink-0 bg-background">
+            <Link
+              to="/search"
+              onClick={closeMobileMenu}
+              className="flex items-center gap-3 text-textLight hover:text-textMain transition-colors w-full py-3"
+            >
+              <Search size={20} strokeWidth={1.5} />
+              <span className="text-sm font-medium">Search</span>
+            </Link>
+            <Link
+              to={isAuthenticated ? '/account' : '/login'}
+              onClick={closeMobileMenu}
+              className="flex items-center gap-3 text-textLight hover:text-textMain transition-colors w-full py-3"
+            >
+              <UserCircle size={20} strokeWidth={1.5} />
+              <span className="text-sm font-medium">{isAuthenticated ? 'My Account' : 'Sign In'}</span>
+            </Link>
+          </div>
         </div>
-      </div>
+      </>
     </nav>
   );
 }

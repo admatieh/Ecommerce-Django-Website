@@ -587,3 +587,52 @@ class CartItem(models.Model):
 
     def __str__(self) -> str:
         return f"{self.quantity}× {self.product.name} in Cart"
+
+
+# ---------------------------------------------------------------------------
+# 12. CONTACT MESSAGE MODEL
+# ---------------------------------------------------------------------------
+
+class ContactMessage(models.Model):
+    """
+    Stores contact form submissions from /contact page.
+    """
+    name = models.CharField(max_length=200, verbose_name="Name")
+    email = models.EmailField(verbose_name="Email")
+    subject = models.CharField(max_length=300, verbose_name="Subject")
+    message = models.TextField(verbose_name="Message")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Created at")
+    is_read = models.BooleanField(default=False, verbose_name="Read")
+
+    class Meta:
+        verbose_name = "Contact message"
+        verbose_name_plural = "Contact messages"
+        ordering = ["-created_at"]
+
+    def __str__(self) -> str:
+        return f"{self.name} – {self.subject}"
+
+
+# ---------------------------------------------------------------------------
+# 13. SUBSCRIBER MODEL
+# ---------------------------------------------------------------------------
+
+class Subscriber(models.Model):
+    """
+    Stores email newsletter subscribers.
+    """
+    email = models.EmailField(unique=True, verbose_name="Email")
+    user = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        verbose_name="User"
+    )
+    is_active = models.BooleanField(default=True, verbose_name="Active")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Created at")
+
+    class Meta:
+        verbose_name = "Subscriber"
+        verbose_name_plural = "Subscribers"
+        ordering = ["-created_at"]
+
+    def __str__(self) -> str:
+        return self.email

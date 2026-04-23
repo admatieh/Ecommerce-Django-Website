@@ -402,13 +402,13 @@ export default function ProductPage() {
               )}
             </div>
 
-            <div className="hidden md:flex md:sticky md:top-[calc(100vh-11rem)] gap-3 bg-background/95 backdrop-blur-sm border border-black/5 rounded-2xl p-3">
+            <div className="flex flex-col sm:flex-row md:sticky md:top-[calc(100vh-11rem)] gap-3 bg-background/95 backdrop-blur-sm md:border border-black/5 rounded-2xl md:p-3 mt-6 md:mt-0">
               <Button
                 onClick={handleAddToCart}
                 isLoading={isAdding}
                 isSuccess={isAdded}
                 disabled={!canAddToCart}
-                className={`flex-1 py-4 uppercase tracking-widest text-xs font-semibold ${
+                className={`flex-1 py-4 uppercase tracking-widest text-xs font-semibold w-full ${
                   canAddToCart ? 'bg-brand text-white hover:opacity-90' : 'bg-black/10 text-textLight hover:bg-black/10'
                 }`}
               >
@@ -417,7 +417,7 @@ export default function ProductPage() {
               </Button>
               <button
                 onClick={() => setIsWishlisted((prev) => !prev)}
-                className={`px-5 rounded-full border text-sm transition-all duration-200 flex items-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 ${
+                className={`px-5 py-4 sm:py-0 rounded-xl sm:rounded-full border text-sm transition-all duration-200 flex items-center justify-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 ${
                   isWishlisted
                     ? 'border-textMain bg-textMain text-white'
                     : 'border-black/10 text-textMain hover:border-black/25'
@@ -429,7 +429,7 @@ export default function ProductPage() {
               </button>
             </div>
             {!canAddToCart && (needsSize || needsColor) && (
-              <p className="hidden md:block text-xs text-textLight mt-3">
+              <p className="text-xs text-textLight mt-3">
                 Select {needsColor ? 'a color' : ''}{needsColor && needsSize ? ' and ' : ''}{needsSize ? 'a size' : ''} to continue.
               </p>
             )}
@@ -453,31 +453,6 @@ export default function ProductPage() {
         )}
       </div>
 
-      <div className="fixed inset-x-0 bottom-0 md:hidden bg-white/95 backdrop-blur-md border-t border-black/10 px-4 py-3 z-40">
-        <div className="max-w-7xl mx-auto flex items-center gap-3">
-          <div className="min-w-0">
-            <p className="text-[11px] uppercase tracking-widest text-textLight truncate">{product.name}</p>
-            <div className="flex items-baseline gap-2">
-              <p className="text-lg font-serif text-textMain">{formatPrice(displayPrice)}</p>
-              {hasDiscount && (
-                <p className="text-sm text-textLight line-through">{formatPrice(product.price)}</p>
-              )}
-            </div>
-          </div>
-          <Button
-            onClick={handleAddToCart}
-            isLoading={isAdding}
-            isSuccess={isAdded}
-            disabled={!canAddToCart}
-            className={`ml-auto px-6 py-3 text-xs uppercase tracking-widest font-semibold ${
-              canAddToCart ? 'bg-brand text-white hover:opacity-90' : 'bg-black/10 text-textLight hover:bg-black/10'
-            }`}
-          >
-            <ShoppingBag size={16} />
-            Add
-          </Button>
-        </div>
-      </div>
     </div>
   );
 }

@@ -18,6 +18,9 @@ from .views import (
     OrderViewSet,
     EmailTokenObtainPairView,
     CartView,
+    ContactMessageView,
+    SubscriberView,
+    SubscriberStatusView,
 )
 
 router = DefaultRouter()
@@ -41,4 +44,11 @@ urlpatterns = [
     
     # Cart endpoint
     path("cart/", CartView.as_view(), name="cart"),
+
+    # Contact endpoint
+    path("contact/", ContactMessageView.as_view(), name="contact"),
+
+    # Subscribe endpoint
+    path("subscribe/", SubscriberView.as_view(), name="subscribe"),
+    path("subscribe/status/", SubscriberStatusView.as_view(), name="subscribe-status"),
 ]

@@ -11,6 +11,7 @@ from django.utils.html import format_html
 
 from .models import (
     User,
+    Address,
     Category,
     Product,
     ProductImage,
@@ -19,6 +20,10 @@ from .models import (
     ShippingRule,
     Order,
     OrderItem,
+    Cart,
+    CartItem,
+    ContactMessage,
+    Subscriber,
 )
 
 
@@ -58,24 +63,45 @@ class OrderItemInline(admin.TabularInline):
         return False
 
 
+class CartItemInline(admin.TabularInline):
+    model = CartItem
+    extra = 0
+    fields = ("product", "size", "color", "quantity")
+    autocomplete_fields = ("product",)
+
+
 # ---------------------------------------------------------------------------
 # 1. User admin
 # ---------------------------------------------------------------------------
 
 @admin.register(User)
 class UserAdmin(BaseUserAdmin):
-    """Extends the default UserAdmin to surface the phone field."""
+    """Extends the default UserAdmin to surface the phone and verification fields."""
 
     fieldsets = BaseUserAdmin.fieldsets + (  # type: ignore[operator]
         ("Contact info", {"fields": ("phone",)}),
+        ("Verification", {"fields": ("is_email_verified",)}),
     )
     add_fieldsets = BaseUserAdmin.add_fieldsets + (  # type: ignore[operator]
         ("Contact info", {"fields": ("email", "phone")}),
     )
 
-    list_display = ("username", "email", "phone", "is_staff", "is_active", "date_joined")
+    list_display = ("username", "email", "phone", "is_email_verified", "is_staff", "is_active", "date_joined")
     search_fields = ("username", "email", "phone", "first_name", "last_name")
-    list_filter = ("is_staff", "is_superuser", "is_active")
+    list_filter = ("is_staff", "is_superuser", "is_active", "is_email_verified")
+
+
+# ---------------------------------------------------------------------------
+# 1.5 Address admin
+# ---------------------------------------------------------------------------
+
+@admin.register(Address)
+class AddressAdmin(admin.ModelAdmin):
+    list_display = ("full_name", "user", "city", "country", "is_default")
+    list_filter = ("is_default", "country")
+    search_fields = ("full_name", "user__email", "address_line", "city")
+    list_editable = ("is_default",)
+    autocomplete_fields = ("user",)
 
 
 # ---------------------------------------------------------------------------
@@ -233,6 +259,7 @@ class OrderAdmin(admin.ModelAdmin):
     list_display_links = ("id", "full_name")
     list_filter = ("status", "payment_method", "created_at")
     search_fields = ("full_name", "email", "phone", "id")
+    list_editable = ("status",)
     readonly_fields = (
         "subtotal",
         "discount",
@@ -263,3 +290,43 @@ class OrderAdmin(admin.ModelAdmin):
             "fields": ("status", "created_at", "estimated_delivery"),
         }),
     )
+
+
+# ---------------------------------------------------------------------------
+# 9. Cart admin
+# ---------------------------------------------------------------------------
+
+@admin.register(Cart)
+class CartAdmin(admin.ModelAdmin):
+    list_display = ("user", "item_count")
+    search_fields = ("user__email",)
+    inlines = [CartItemInline]
+
+    @admin.display(description="Items")
+    def item_count(self, obj):
+        return obj.items.count()
+
+
+# ---------------------------------------------------------------------------
+# 10. Contact Message admin
+# ---------------------------------------------------------------------------
+
+@admin.register(ContactMessage)
+class ContactMessageAdmin(admin.ModelAdmin):
+    list_display = ("name", "email", "subject", "is_read", "created_at")
+    list_filter = ("is_read", "created_at")
+    search_fields = ("name", "email", "subject", "message")
+    list_editable = ("is_read",)
+    readonly_fields = ("name", "email", "subject", "message", "created_at")
+    ordering = ("-created_at",)
+
+
+# ---------------------------------------------------------------------------
+# 11. Subscriber admin
+# ---------------------------------------------------------------------------
+
+@admin.register(Subscriber)
+class SubscriberAdmin(admin.ModelAdmin):
+    list_display = ("email", "user", "is_active", "created_at")
+    search_fields = ("email",)
+    list_filter = ("is_active", "created_at")
