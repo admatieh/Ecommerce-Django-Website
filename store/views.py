@@ -39,7 +39,7 @@ from .filters import ProductFilter
 from .models import (
     Category, Discount, Product, ProductImage, ProductVariant,
     ShippingRule, User, Address, Order, OrderItem, Cart, CartItem,
-    ContactMessage,
+    ContactMessage, WishlistItem,
 )
 from .serializers import (
     CategorySerializer,
@@ -509,3 +509,64 @@ class SubscriberStatusView(APIView):
         from store.models import Subscriber
         is_subscribed = Subscriber.objects.filter(user=request.user).exists()
         return Response({"isSubscribed": is_subscribed})
+
+
+# ---------------------------------------------------------------------------
+# Wishlist
+# ---------------------------------------------------------------------------
+
+class WishlistView(APIView):
+    """
+    GET /api/wishlist/ - List user's wishlist products
+    POST /api/wishlist/ - Add product to wishlist
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        wishlist_items = WishlistItem.objects.filter(user=request.user).select_related("product")
+        products = [item.product for item in wishlist_items]
+        # Make sure to prefetch related if needed, but since it's a list we can pass through ProductSerializer
+        # Wait, for full performance, we should fetch products using _product_queryset()
+        product_ids = [p.id for p in products]
+        qs = _product_queryset().filter(id__in=product_ids)
+        # Preserve ordering by created_at of wishlist items? The default ordering is -created_at
+        ordered_products = sorted(qs, key=lambda p: product_ids.index(p.id))
+        
+        serializer = ProductSerializer(ordered_products, many=True)
+        return Response(serializer.data)
+
+    def post(self, request):
+        product_id = request.data.get("product_id")
+        if not product_id:
+            return Response({"detail": "product_id is required"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            product = Product.objects.get(pk=product_id)
+        except Product.DoesNotExist:
+            return Response({"detail": "Product not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        item, created = WishlistItem.objects.get_or_create(user=request.user, product=product)
+        return Response({"success": True, "created": created}, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
+
+
+class WishlistDetailView(APIView):
+    """
+    DELETE /api/wishlist/<product_id>/ - Remove product from wishlist
+    """
+    permission_classes = [IsAuthenticated]
+
+    def delete(self, request, product_id):
+        WishlistItem.objects.filter(user=request.user, product_id=product_id).delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class WishlistStatusView(APIView):
+    """
+    GET /api/wishlist/status/<product_id>/ - Check if product is in wishlist
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, product_id):
+        is_in_wishlist = WishlistItem.objects.filter(user=request.user, product_id=product_id).exists()
+        return Response({"isInWishlist": is_in_wishlist})
+

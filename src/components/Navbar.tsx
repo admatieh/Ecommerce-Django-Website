@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
-import { ShoppingBag, Search, Menu, X, UserCircle } from 'lucide-react';
+import { ShoppingBag, Search, Menu, X, UserCircle, Heart } from 'lucide-react';
 import { NavLink, Link } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
 import { getNavigationLinks } from '../services/uiService';
+import { useWishlist } from '../context/WishlistContext';
 
 export default function Navbar() {
   const navigationLinks = getNavigationLinks();
@@ -11,6 +12,8 @@ export default function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState<boolean>(false);
   const { cartCount, openCart } = useCart();
   const { isAuthenticated } = useAuth();
+  const { wishlist } = useWishlist();
+  const wishlistCount = wishlist.length;
 
   useEffect(() => {
     const handleScroll = () => {
@@ -106,6 +109,19 @@ export default function Navbar() {
             <UserCircle size={18} strokeWidth={1.5} />
             <span className="hidden lg:inline">{isAuthenticated ? 'Account' : 'Sign In'}</span>
           </Link>
+          <Link
+            to="/wishlist"
+            className="flex items-center gap-2 text-sm hover:text-brand transition-all duration-200 hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 rounded-full p-1 relative"
+            aria-label={`Wishlist, ${wishlistCount} items`}
+          >
+            <Heart size={18} strokeWidth={1.5} />
+            <span className="hidden lg:inline">Wishlist</span>
+            {wishlistCount > 0 && (
+              <span className="absolute -top-1 -right-1 lg:-right-2 w-4 h-4 bg-textMain text-white text-[9px] font-bold rounded-full flex items-center justify-center min-w-[16px] min-h-[16px]">
+                {wishlistCount}
+              </span>
+            )}
+          </Link>
           <button
             className="flex items-center gap-2 text-sm hover:text-brand transition-all duration-200 hover:opacity-80 active:scale-90 active:translate-x-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 rounded-full p-1 relative"
             onClick={openCart}
@@ -189,6 +205,14 @@ export default function Navbar() {
             >
               <UserCircle size={20} strokeWidth={1.5} />
               <span className="text-sm font-medium">{isAuthenticated ? 'My Account' : 'Sign In'}</span>
+            </Link>
+            <Link
+              to="/wishlist"
+              onClick={closeMobileMenu}
+              className="flex items-center gap-3 text-textLight hover:text-textMain transition-colors w-full py-3"
+            >
+              <Heart size={20} strokeWidth={1.5} />
+              <span className="text-sm font-medium">Wishlist ({wishlistCount})</span>
             </Link>
           </div>
         </div>

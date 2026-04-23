@@ -636,3 +636,35 @@ class Subscriber(models.Model):
 
     def __str__(self) -> str:
         return self.email
+
+
+# ---------------------------------------------------------------------------
+# 14. WISHLIST ITEM MODEL
+# ---------------------------------------------------------------------------
+
+class WishlistItem(models.Model):
+    """
+    Stores products added to user's wishlist.
+    """
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="wishlist_items",
+        verbose_name="User"
+    )
+    product = models.ForeignKey(
+        Product,
+        on_delete=models.CASCADE,
+        related_name="wishlisted_by",
+        verbose_name="Product"
+    )
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Created at")
+
+    class Meta:
+        verbose_name = "Wishlist item"
+        verbose_name_plural = "Wishlist items"
+        unique_together = ("user", "product")
+        ordering = ["-created_at"]
+
+    def __str__(self) -> str:
+        return f"{self.user.email} - {self.product.name}"

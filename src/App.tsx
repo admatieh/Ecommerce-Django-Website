@@ -9,6 +9,7 @@ import AboutPage from './pages/AboutPage'
 import ContactPage from './pages/ContactPage'
 import { CartProvider } from './context/CartContext'
 import { AuthProvider } from './context/AuthContext'
+import { WishlistProvider } from './context/WishlistContext'
 import CartDrawer from './components/CartDrawer'
 import PageTransition from './components/PageTransition'
 import Layout from './components/Layout'
@@ -17,6 +18,7 @@ import LoginPage from './pages/LoginPage'
 import RegisterPage from './pages/RegisterPage'
 import VerifyEmailPage from './pages/VerifyEmailPage'
 import AccountPage from './pages/AccountPage'
+import WishlistPage from './pages/WishlistPage'
 
 function AnimatedRoutes() {
   const location = useLocation();
@@ -74,6 +76,14 @@ function AnimatedRoutes() {
               </ProtectedRoute>
             } 
           />
+          <Route 
+            path="/wishlist" 
+            element={
+              <ProtectedRoute>
+                <WishlistPage />
+              </ProtectedRoute>
+            } 
+          />
         </Routes>
       </PageTransition>
     </Layout>
@@ -83,14 +93,16 @@ function AnimatedRoutes() {
 function App() {
   return (
     <AuthProvider>
-      <CartProvider>
-        <BrowserRouter>
-          <div className="min-h-screen bg-background text-textMain overflow-x-hidden flex flex-col">
-            <AnimatedRoutes />
-            <CartDrawer />
-          </div>
-        </BrowserRouter>
-      </CartProvider>
+      <WishlistProvider>
+        <CartProvider>
+          <BrowserRouter>
+            <div className="min-h-screen bg-background text-textMain overflow-x-hidden flex flex-col">
+              <AnimatedRoutes />
+              <CartDrawer />
+            </div>
+          </BrowserRouter>
+        </CartProvider>
+      </WishlistProvider>
     </AuthProvider>
   )
 }

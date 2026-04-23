@@ -24,6 +24,7 @@ from .models import (
     CartItem,
     ContactMessage,
     Subscriber,
+    WishlistItem,
 )
 
 
@@ -330,3 +331,15 @@ class SubscriberAdmin(admin.ModelAdmin):
     list_display = ("email", "user", "is_active", "created_at")
     search_fields = ("email",)
     list_filter = ("is_active", "created_at")
+
+
+# ---------------------------------------------------------------------------
+# 12. Wishlist Item admin
+# ---------------------------------------------------------------------------
+
+@admin.register(WishlistItem)
+class WishlistItemAdmin(admin.ModelAdmin):
+    list_display = ("user", "product", "created_at")
+    search_fields = ("user__email", "product__name")
+    list_filter = ("created_at",)
+    autocomplete_fields = ("user", "product")

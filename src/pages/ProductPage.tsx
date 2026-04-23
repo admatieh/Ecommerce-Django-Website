@@ -4,6 +4,7 @@ import { Link, useParams } from 'react-router-dom';
 import Button from '../components/Button';
 import ProductCard from '../components/ProductCard';
 import { useCart } from '../context/CartContext';
+import { useWishlist } from '../context/WishlistContext';
 import { getProductById, getRelatedProducts, getCategoryForProduct } from '../services/productService';
 import { formatPrice } from '../utils/format';
 import { Product, Category } from '../types/product';
@@ -153,6 +154,7 @@ export default function ProductPage() {
   const { id } = useParams();
   const productId = Number(id);
   const { addToCart } = useCart();
+  const { isInWishlist, addToWishlist, removeFromWishlist } = useWishlist();
 
   const [product, setProduct] = useState<Product | null>(null);
   const [category, setCategory] = useState<Category | null>(null);
@@ -162,9 +164,10 @@ export default function ProductPage() {
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
   const [selectedColor, setSelectedColor] = useState<string | null>(null);
   const [quantity, setQuantity] = useState<number>(1);
-  const [isWishlisted, setIsWishlisted] = useState<boolean>(false);
   const [isAdding, setIsAdding] = useState<boolean>(false);
   const [isAdded, setIsAdded] = useState<boolean>(false);
+
+  const isWishlisted = product ? isInWishlist(product.id) : false;
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -416,7 +419,15 @@ export default function ProductPage() {
                 Add to Cart
               </Button>
               <button
-                onClick={() => setIsWishlisted((prev) => !prev)}
+                onClick={() => {
+                  if (product) {
+                    if (isWishlisted) {
+                      removeFromWishlist(product.id);
+                    } else {
+                      addToWishlist(product);
+                    }
+                  }
+                }}
                 className={`px-5 py-4 sm:py-0 rounded-xl sm:rounded-full border text-sm transition-all duration-200 flex items-center justify-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 ${
                   isWishlisted
                     ? 'border-textMain bg-textMain text-white'

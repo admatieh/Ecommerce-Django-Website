@@ -21,6 +21,9 @@ from .views import (
     ContactMessageView,
     SubscriberView,
     SubscriberStatusView,
+    WishlistView,
+    WishlistDetailView,
+    WishlistStatusView,
 )
 
 router = DefaultRouter()
@@ -51,4 +54,9 @@ urlpatterns = [
     # Subscribe endpoint
     path("subscribe/", SubscriberView.as_view(), name="subscribe"),
     path("subscribe/status/", SubscriberStatusView.as_view(), name="subscribe-status"),
+
+    # Wishlist endpoints
+    path("wishlist/", WishlistView.as_view(), name="wishlist"),
+    path("wishlist/<int:product_id>/", WishlistDetailView.as_view(), name="wishlist-detail"),
+    path("wishlist/status/<int:product_id>/", WishlistStatusView.as_view(), name="wishlist-status"),
 ]
