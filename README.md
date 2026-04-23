@@ -37,6 +37,7 @@ Velora is a fully functional e-commerce storefront.
    ```
 3. Run migrations:
    ```bash
+   cd ..
    python manage.py migrate
    ```
 4. Seed the database with mock data:
